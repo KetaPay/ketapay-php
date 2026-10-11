@@ -11,6 +11,9 @@ on:
         type: string
         required: false
 
+permissions:
+  contents: read
+
 # Each job is its own check on the PR, so you can see at a glance which kind of test failed.
 # Tooling runs on PHP 8.4; the SDK itself is tested on every supported PHP, 8.1 to the newest.
 jobs:
