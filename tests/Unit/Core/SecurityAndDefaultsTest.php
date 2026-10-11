@@ -35,13 +35,13 @@ final class SecurityAndDefaultsTest extends TestCase
             'cancel an escrow' => fn() => $k->escrows->cancel('e1', null, []), // @phpstan-ignore argument.type
             'deliver a milestone' => fn() => $k->escrows->milestones->deliver('e1', 'm1', [], ['customerToken' => '']), // types allow it; refused at runtime
             'see a release code' => fn() => $k->escrows->milestones->releaseCode('e1', 'm1', []), // @phpstan-ignore argument.type
-            'open a dispute' => fn() => $k->disputes->create('e1', ['reason' => 'damaged'], ['idempotencyKey' => 'x']), // @phpstan-ignore argument.type
+            'open a dispute' => fn() => $k->disputes->create('e1', ['reason' => 'damaged', 'description' => 'Arrived cracked'], ['idempotencyKey' => 'x']), // @phpstan-ignore argument.type
             'concede' => fn() => $k->disputes->concede('d1', []), // @phpstan-ignore argument.type
             'withdraw' => fn() => $k->disputes->withdraw('d1', []), // @phpstan-ignore argument.type
-            'add evidence' => fn() => $k->disputes->submitEvidence('d1', [], []), // @phpstan-ignore argument.type
+            'add evidence' => fn() => $k->disputes->submitEvidence('d1', ['statement' => 'Photos attached'], []), // @phpstan-ignore argument.type
             'list evidence' => fn() => $k->disputes->listEvidence('d1', []), // @phpstan-ignore argument.type
-            'add chargeback evidence' => fn() => $k->chargebacks->submitEvidence('c1', [], []), // @phpstan-ignore argument.type
-            'add a payout account' => fn() => $k->payoutAccounts->create(['bank_code' => '057'], []), // @phpstan-ignore argument.type
+            'add chargeback evidence' => fn() => $k->chargebacks->submitEvidence('c1', ['statement' => 'Courier receipt'], []), // @phpstan-ignore argument.type
+            'add a payout account' => fn() => $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0123456789'], []), // @phpstan-ignore argument.type
             'confirm a payout account' => fn() => $k->payoutAccounts->confirm('p1', '123456', []), // @phpstan-ignore argument.type
             'list payout accounts' => fn() => $k->payoutAccounts->list([]), // @phpstan-ignore argument.type
             'delete a payout account' => fn() => $k->payoutAccounts->del('p1', []), // @phpstan-ignore argument.type
@@ -72,7 +72,7 @@ final class SecurityAndDefaultsTest extends TestCase
     {
         $t = new MockTransport(self::page([], null), self::page([], null));
         $k = self::client($t);
-        $k->escrows->list(['status' => null, 'external_reference' => '', 'limit' => 5]);
+        $k->escrows->list(['status' => null, 'external_reference' => '', 'limit' => 5]); // @phpstan-ignore argument.type (empty values on purpose)
         $k->events->list(['flag' => true]);
         self::assertSame('https://api.ketapay.com/v1/escrows?limit=5', $t->requests[0]->url);
         self::assertSame('https://api.ketapay.com/v1/events?flag=true', $t->requests[1]->url);

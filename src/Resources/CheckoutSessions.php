@@ -9,6 +9,8 @@ use KetaPay\Models\CheckoutSession;
 use KetaPay\Page;
 
 /**
+ * @phpstan-import-type CreateCheckoutSessionRequest from \KetaPay\Types\Params
+ * @phpstan-import-type ListCheckoutSessionsParams from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
@@ -17,7 +19,7 @@ final class CheckoutSessions extends AbstractResource
     /**
      * Starts checkout for one agreement. Call from your server only.
      *
-     * @param array<string, mixed> $params
+     * @param CreateCheckoutSessionRequest $params
      * @param RequestOptions       $options
      */
     public function create(array $params, array $options = []): CheckoutSession
@@ -32,7 +34,7 @@ final class CheckoutSessions extends AbstractResource
     }
 
     /**
-     * @param array<string, scalar|null> $params filters: status, external_reference, limit, cursor
+     * @param ListCheckoutSessionsParams $params filters: status, external_reference, limit, cursor
      * @param RequestOptions             $options
      *
      * @return Page<CheckoutSession>

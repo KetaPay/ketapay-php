@@ -8,6 +8,7 @@ use KetaPay\Models\CustomerSession;
 use KetaPay\Models\CustomerToken;
 
 /**
+ * @phpstan-import-type CreateCustomerSessionRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  */
 final class CustomerSessions extends AbstractResource
@@ -15,7 +16,7 @@ final class CustomerSessions extends AbstractResource
     /**
      * Sends a one-time code to the customer's email or phone.
      *
-     * @param array{email: string}|array{phone: string} $params exactly one of email and phone
+     * @param CreateCustomerSessionRequest $params exactly one of email and phone
      * @param RequestOptions                            $options
      */
     public function create(array $params, array $options = []): CustomerSession

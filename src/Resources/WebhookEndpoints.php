@@ -12,6 +12,9 @@ use KetaPay\Models\WebhookTestResult;
 use KetaPay\Page;
 
 /**
+ * @phpstan-import-type CreateWebhookEndpointRequest from \KetaPay\Types\Params
+ * @phpstan-import-type ListWebhookEndpointsParams from \KetaPay\Types\Params
+ * @phpstan-import-type UpdateWebhookEndpointRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  */
 final class WebhookEndpoints extends AbstractResource
@@ -19,7 +22,7 @@ final class WebhookEndpoints extends AbstractResource
     /**
      * The response is the only time `secret` is shown. Store it.
      *
-     * @param array<string, mixed> $params url, enabled_events, description
+     * @param CreateWebhookEndpointRequest $params url, enabled_events, description
      * @param RequestOptions       $options
      */
     public function create(array $params, array $options = []): WebhookEndpointWithSecret
@@ -36,7 +39,7 @@ final class WebhookEndpoints extends AbstractResource
     /**
      * Change the URL or events, or re-enable a `failing` endpoint with `['status' => 'enabled']`.
      *
-     * @param array<string, mixed> $params
+     * @param UpdateWebhookEndpointRequest $params
      * @param RequestOptions       $options
      */
     public function update(string $id, array $params, array $options = []): WebhookEndpoint
@@ -45,7 +48,7 @@ final class WebhookEndpoints extends AbstractResource
     }
 
     /**
-     * @param array<string, scalar|null> $params limit, cursor
+     * @param ListWebhookEndpointsParams $params limit, cursor
      * @param RequestOptions             $options
      *
      * @return Page<WebhookEndpoint>

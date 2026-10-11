@@ -38,6 +38,8 @@ Use your secret key on your server only. Publishable keys (`pk_`) are rejected h
 
 Fields read exactly as the API sends them: `$session->url`, `$escrow->funded_at`, `$escrow->milestones[0]->status`. Objects are read only; `->toArray()` gives a plain array. Status values have constants in `KetaPay\Enums` (`EscrowStatus::ACTIVE`).
 
+Parameters are plain arrays with snake_case keys, exactly as the API takes them. They're typed for static analysis: with PHPStan or PhpStorm, a missing required field, a wrong value type or an unknown enum value (say `'category' => 'cars'`) is flagged before you run anything. Two rules can only be checked by the API, which rejects them with the exact `param`: misspelled extra keys, and "email or phone" on a buyer or seller.
+
 ## Milestones
 
 ```php
@@ -185,6 +187,8 @@ Then type-hint `KetaPay` in controllers and jobs. Exclude your webhook route fro
 ```php
 new KetaPay(['apiKey' => $key, 'transport' => new KetaPay\Http\Psr18Transport($client, $requestFactory, $streamFactory)]);
 ```
+
+Building a library on top of this one? Identify it with `'appInfo' => ['name' => 'my-plugin', 'version' => '1.2.0']`: it's added to the User-Agent, so KetaPay support can see which integration made a call.
 
 ## Development
 

@@ -9,6 +9,7 @@ use KetaPay\Models\Chargeback;
 use KetaPay\Models\Evidence;
 
 /**
+ * @phpstan-import-type SubmitEvidenceRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
@@ -33,7 +34,7 @@ final class Chargebacks extends AbstractResource
     /**
      * The seller adds proof of delivery. Needs the seller's customer token.
      *
-     * @param array<string, mixed>   $params  statement, files
+     * @param SubmitEvidenceRequest   $params  statement, files
      * @param CustomerRequestOptions $options
      */
     public function submitEvidence(string $id, array $params, array $options): Evidence

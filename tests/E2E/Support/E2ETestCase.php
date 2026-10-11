@@ -14,6 +14,9 @@ use KetaPay\Tests\Support\TestCase;
  * Base for E2E tests: the real SDK against the staging API with sandbox keys. Skipped when the settings
  * in Env are missing. Every test builds its own data with fresh people, so tests never share state.
  */
+/**
+ * @phpstan-import-type CreateCheckoutSessionRequest from \KetaPay\Types\Params
+ */
 abstract class E2ETestCase extends TestCase
 {
     private static int $counter = 0;
@@ -46,16 +49,17 @@ abstract class E2ETestCase extends TestCase
     /**
      * A valid two-milestone services deal, tagged with the run id for cleanup.
      *
-     * @param array{buyer: array<string, string>, seller: array<string, string>}|null $who
-     * @param array<string, mixed>                                                    $overrides
+     * @param array{buyer: array{email: string, name: string, phone?: string}, seller: array{email: string, name: string}}|null $who
+     * @param array<string, mixed>                                                                                           $overrides
      *
-     * @return array<string, mixed>
+     * @return CreateCheckoutSessionRequest
      */
     protected static function sessionParams(?array $who = null, array $overrides = []): array
     {
         $who ??= self::people();
 
-        return [
+        /** @var CreateCheckoutSessionRequest $params the overrides are valid fields, or deliberately invalid ones (E2E-022) */
+        $params = [
             'amount' => 1_500_000,
             'category' => 'services',
             'title' => 'E2E website build',
@@ -71,6 +75,8 @@ abstract class E2ETestCase extends TestCase
             'metadata' => ['e2e_run' => Env::runId()],
             ...$overrides,
         ];
+
+        return $params;
     }
 
     /** Signs a customer in with the sandbox code and returns their customer token. */
@@ -104,7 +110,11 @@ abstract class E2ETestCase extends TestCase
         return $escrow->milestones[0];
     }
 
-    /** @return list<Event> events of a type whose object is, or belongs to, the escrow */
+    /**
+     * @param \KetaPay\Enums\EventType::* $type
+     *
+     * @return list<Event> events of a type whose object is, or belongs to, the escrow
+     */
     protected static function eventsFor(Escrow $escrow, string $type): array
     {
         $events = self::ketapay()->events->list(['type' => $type, 'limit' => 100])->data;

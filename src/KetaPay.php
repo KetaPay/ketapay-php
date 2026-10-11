@@ -28,14 +28,14 @@ use KetaPay\Resources\Webhooks;
  *     $ketapay = new KetaPay(getenv('KETAPAY_SECRET_KEY'));
  *     $ketapay = new KetaPay(['apiKey' => $key, 'maxRetries' => 3, 'logLevel' => 'debug', 'logger' => $psr3]);
  *
- * @phpstan-type Config array{apiKey: string, baseUrl?: string, maxRetries?: int, timeoutMs?: int, transport?: Transport, defaultHeaders?: array<string, string>, logLevel?: 'off'|'error'|'warn'|'info'|'debug', logger?: object|callable|null}
+ * @phpstan-type Config array{apiKey: string, baseUrl?: string, maxRetries?: int, timeoutMs?: int, transport?: Transport, defaultHeaders?: array<string, string>, logLevel?: 'off'|'error'|'warn'|'info'|'debug', logger?: object|callable|null, appInfo?: array{name: string, version: string}}
  * @phpstan-type CustomerRequestOptions array{customerToken: string, idempotencyKey?: string, timeoutMs?: int, maxRetries?: int, cancel?: CancellationToken, headers?: array<string, string>}
  */
 final class KetaPay
 {
     public const VERSION = '0.1.0-beta.1'; // x-release-please-version
 
-    private const CONFIG_KEYS = ['apiKey', 'baseUrl', 'maxRetries', 'timeoutMs', 'transport', 'defaultHeaders', 'logLevel', 'logger'];
+    private const CONFIG_KEYS = ['apiKey', 'baseUrl', 'maxRetries', 'timeoutMs', 'transport', 'defaultHeaders', 'logLevel', 'logger', 'appInfo'];
 
     // Checkout
     public readonly CheckoutSessions $checkoutSessions;
@@ -95,6 +95,7 @@ final class KetaPay
             $config['transport'] ?? (extension_loaded('curl') ? new CurlTransport() : new StreamTransport()),
             $config['defaultHeaders'] ?? [],
             new Logger($config['logLevel'] ?? 'warn', $config['logger'] ?? null),
+            self::appInfo($config['appInfo'] ?? null),
         );
         $this->livemode = $http->livemode;
         $this->checkoutSessions = new CheckoutSessions($http);
@@ -109,6 +110,24 @@ final class KetaPay
         $this->events = new Events($http);
         $this->webhooks = new Webhooks();
         $this->testHelpers = new TestHelpers($http);
+    }
+
+    /**
+     * "name/version" for the User-Agent. Libraries built on this SDK (like ketapay-laravel) pass it so
+     * KetaPay can tell integrations apart. Only token characters, so it can never break the header.
+     */
+    private static function appInfo(mixed $info): ?string
+    {
+        if ($info === null) {
+            return null;
+        }
+        $name = is_array($info) ? ($info['name'] ?? null) : null;
+        $version = is_array($info) ? ($info['version'] ?? null) : null;
+        if (!is_string($name) || !is_string($version) || !preg_match('/^[A-Za-z0-9._@\/-]{1,64}$/', $name) || !preg_match('/^[A-Za-z0-9.+_-]{1,32}$/', $version)) {
+            throw new \InvalidArgumentException('KetaPay: appInfo must be [\'name\' => ..., \'version\' => ...] using letters, digits, dots and dashes');
+        }
+
+        return "$name/$version";
     }
 
     private static function isSafeBaseUrl(string $url): bool

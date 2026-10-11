@@ -46,7 +46,7 @@ final class TransportsTest extends TestCase
     public function testRoundTrip(\Closure $transport): void
     {
         $k = self::local($transport(), '/echo');
-        $created = $k->checkoutSessions->create(['amount' => 100, 'title' => 'Café'], ['idempotencyKey' => 'k1', 'headers' => ['X-Trace' => 'abc']]);
+        $created = $k->checkoutSessions->create(['amount' => 100, 'title' => 'Café'], ['idempotencyKey' => 'k1', 'headers' => ['X-Trace' => 'abc']]); // @phpstan-ignore argument.type (a partial body is enough for the echo server)
         self::assertSame('req_local', $created->getLastResponse()?->requestId);
         $echo = self::echoed($created);
         self::assertSame('POST', $echo['method']);

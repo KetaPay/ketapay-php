@@ -8,6 +8,8 @@ use KetaPay\Models\Escrow;
 use KetaPay\Models\ReleaseCode;
 
 /**
+ * @phpstan-import-type DeliverMilestoneRequest from \KetaPay\Types\Params
+ * @phpstan-import-type ReleaseMilestoneRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
@@ -16,7 +18,7 @@ final class Milestones extends AbstractResource
     /**
      * The seller marks the milestone delivered. Needs the seller's customer token.
      *
-     * @param array<string, mixed>   $params  note, attachments
+     * @param DeliverMilestoneRequest   $params  note, attachments
      * @param CustomerRequestOptions $options
      */
     public function deliver(string $escrowId, string $milestoneId, array $params, array $options): Escrow
@@ -28,7 +30,7 @@ final class Milestones extends AbstractResource
      * Pays the seller for this milestone. Send the buyer's customer token, or (for `release_code`
      * escrows) the buyer's `release_code` in `$params`.
      *
-     * @param array<string, mixed> $params
+     * @param ReleaseMilestoneRequest $params
      * @param RequestOptions       $options
      */
     public function release(string $escrowId, string $milestoneId, array $params = [], array $options = []): Escrow
