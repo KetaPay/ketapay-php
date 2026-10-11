@@ -65,7 +65,10 @@ jobs:
       - name: Static analysis (PHPStan, level max for the SDK and tests)
         run: composer lint
       - name: No known vulnerabilities in what we ship
-        run: composer audit --no-dev --locked # reads the lock file: there are no runtime packages to install
+        # Composer refuses to audit an empty set, so with no runtime packages there is nothing to run.
+        run: |
+          deps=$(php -r '$r = json_decode(file_get_contents("composer.json"), true)["require"] ?? []; echo implode(" ", array_filter(array_keys($r), fn ($p) => $p !== "php" && !str_starts_with($p, "ext-")));')
+          if [ -z "$deps" ]; then echo "No runtime dependencies: nothing shipped to audit."; else composer audit --no-dev; fi
 
   unit:
     name: Unit tests (PHP ${{ matrix.php }})
