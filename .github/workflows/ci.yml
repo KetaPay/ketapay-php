@@ -65,7 +65,7 @@ jobs:
       - name: Static analysis (PHPStan, level max for the SDK and tests)
         run: composer lint
       - name: No known vulnerabilities in what we ship
-        run: composer audit --no-dev
+        run: composer audit --no-dev --locked # reads the lock file: there are no runtime packages to install
 
   unit:
     name: Unit tests (PHP ${{ matrix.php }})
