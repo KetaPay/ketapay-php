@@ -67,7 +67,7 @@ jobs:
         with:
           php-version: '8.4'
           coverage: none
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
         if: steps.configured.outputs.yes == 'true'
       - name: E2E tests
         if: steps.configured.outputs.yes == 'true'

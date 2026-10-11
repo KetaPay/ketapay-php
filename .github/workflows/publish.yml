@@ -107,7 +107,7 @@ jobs:
           php-version: '8.4'
           coverage: none
           extensions: curl, zip
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: Smoke test the exact archive being published
         run: composer smoke:package
       - name: Ask Packagist to read the new tag

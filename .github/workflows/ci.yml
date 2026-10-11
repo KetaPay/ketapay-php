@@ -40,7 +40,7 @@ jobs:
         with:
           php-version: '8.4'
           coverage: none
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: Spec snapshot was not edited by hand
         run: composer check:spec
       - name: Generated models match the spec
@@ -57,7 +57,7 @@ jobs:
         with:
           php-version: '8.4'
           coverage: none
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: composer.json is valid
         run: composer validate --strict
       - name: Formatting
@@ -86,7 +86,7 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: pcov
           extensions: curl, pcntl
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: Unit tests with coverage
         run: composer test:ci
       - name: Coverage at or above the threshold
@@ -96,7 +96,7 @@ jobs:
         run: php scripts/test-summary.php >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage report
         if: always() && matrix.php == '8.4'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage/
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: SDK requests against a mock built from the spec
         run: composer test:contract -- --log-junit reports/contract.xml --testdox-text reports/contract-testdox.txt
       - name: Test report
@@ -139,7 +139,7 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
           extensions: curl, zip
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: The archive installs and works (Composer and init.php, curl and streams, PHPStan types)
         run: composer smoke:package
 
@@ -154,6 +154,6 @@ jobs:
         with:
           php-version: '8.4'
           coverage: none
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
       - name: Every catalogue scenario has a tagged test
         run: composer test:catalogue
