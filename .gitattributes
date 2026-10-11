@@ -14,6 +14,8 @@
 /.release-please-manifest.json export-ignore
 /CHANGELOG.md export-ignore
 /CONTRIBUTING.md export-ignore
+/SECURITY.md export-ignore
+/.gitleaks.toml export-ignore
 /composer.lock export-ignore
 /version.txt export-ignore
 

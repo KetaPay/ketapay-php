@@ -29,6 +29,21 @@ jobs:
             exit 1
           fi
 
+  secrets:
+    name: Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0 # the whole history: a secret removed in a later commit is still exposed
+      - name: No secrets anywhere in the history (gitleaks, with KetaPay's own patterns in .gitleaks.toml)
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="--all" .
+
   spec:
     name: Spec
     runs-on: ubuntu-latest

@@ -1,5 +1,8 @@
 # The SDK and its tests at the strictest level. Dev scripts have their own, looser config (phpstan-scripts.neon).
 parameters:
+    # Analyse as the oldest PHP the SDK supports: flags newer syntax even on a newer local PHP. It does NOT catch
+    # newer functions or constants (they exist in the PHP running PHPStan): CI's run on that PHP does.
+    phpVersion: 80100
     level: max
     paths:
         - src

@@ -9,6 +9,7 @@
 # 2. Runs the whole CI suite and the E2E suite on that exact tag (E2E is required for stable releases).
 # 3. Smoke-tests the archive, asks Packagist to update, and waits until the version is listed.
 #
+# The publish job runs in the `publish` environment, which needs dudox's approval before it starts.
 # Auth: PACKAGIST_TOKEN (Packagist API token of dudox) from Infisical (ketapay-sdks, prod).
 name: Publish to Packagist
 
@@ -85,6 +86,7 @@ jobs:
 
   publish:
     name: Publish
+    environment: publish # requires dudox's approval (repo settings > Environments)
     needs: [prepare, checks, e2e]
     runs-on: ubuntu-latest
     permissions:
