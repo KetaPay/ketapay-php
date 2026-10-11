@@ -1,0 +1,28 @@
+# Checks, without publishing, that the publish job can read its secrets from Infisical and that the
+# Packagist token is valid. Run it from the Actions tab before a release, or after rotating PACKAGIST_TOKEN.
+name: Check release secrets
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Fetch secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: 'oidc'
+          oidc-audience: 'https://infisical.com'
+          identity-id: 'ef5c6cbd-0f7e-49a9-a6b7-8d115c2abbd2'
+          project-slug: 'ketapay-sdks-pz5w' # one Infisical project for every KetaPay SDK
+          env-slug: 'prod'
+      - name: Packagist token is present and valid
+        run: |
+          if [ -z "$PACKAGIST_TOKEN" ]; then echo "::error::PACKAGIST_TOKEN missing from Infisical prod"; exit 1; fi
+          status=$(curl -s -o /dev/null -w '%{http_code}' "https://packagist.org/api/packages/ketapay/ketapay-php?username=dudox&apiToken=${PACKAGIST_TOKEN}")
+          echo "Packagist answered HTTP $status"
+          if [ "$status" = "401" ] || [ "$status" = "403" ]; then echo "::error::PACKAGIST_TOKEN was refused"; exit 1; fi

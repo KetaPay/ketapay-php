@@ -1,0 +1,22 @@
+# Only src/, init.php, composer.json, LICENSE and README.md ship to customers (checked by smoke-package.php).
+/.github export-ignore
+/.githooks export-ignore
+/scripts export-ignore
+/spec export-ignore
+/tests export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/phpstan.neon.dist export-ignore
+/phpstan-scripts.neon export-ignore
+/phpunit.xml.dist export-ignore
+/release-please-config.json export-ignore
+/.release-please-manifest.json export-ignore
+/CHANGELOG.md export-ignore
+/CONTRIBUTING.md export-ignore
+/composer.lock export-ignore
+/version.txt export-ignore
+
+spec/v1.yaml linguist-generated=true
+src/Models/** linguist-generated=true
+src/Enums/** linguist-generated=true

@@ -1,0 +1,4411 @@
+# GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
+# sha256: fe9ea8f68208a3543e2467f270dcd3dd71abb3cd0631cbae4d492a9a938ea42a
+
+openapi: 3.1.0
+info:
+  title: KetaPay API
+  version: v1
+  summary: Put KetaPay escrow inside your product.
+  description: |
+    The KetaPay API lets any business offer escrow to its own customers: marketplaces,
+    freelance and services platforms, property and legal firms, dealers, social commerce and
+    anyone else whose customers pay each other. Your server creates a checkout session, your
+    customer pays, and KetaPay holds the money until the work or goods are confirmed. Webhooks
+    tell your server about every change.
+
+    You can send your customers to KetaPay's hosted checkout, or build every screen yourself on
+    this API. Both use the same endpoints.
+
+    ## How an escrow works
+
+    An escrow is an agreement between a **buyer**, who pays, and a **seller**, who gets paid.
+    It is split into one or more **milestones**, each with its own amount. A one-off sale is a
+    single milestone; a website build might be design, build and launch; a property purchase
+    might be deposit, documents and keys.
+
+    1. The buyer pays the full amount up front. KetaPay holds it and the plan is fixed.
+    2. For each milestone, in order, the seller marks it **delivered**, with an optional note
+       and files (a tracking number, a link to the work, a signed document).
+    3. The buyer **releases** it, and the seller is paid for that milestone. If the buyer goes
+       quiet and you set `auto_release_hours`, it releases when that time runs out.
+    4. When every milestone is released, the escrow is `completed`.
+
+    For in-person deals, set `release.method` to `release_code`: the buyer gets a 6-digit code
+    for each milestone and gives it to the seller only once satisfied. The seller entering the
+    code delivers and releases that milestone in one step.
+
+    At any point either side can open a dispute, which freezes the affected milestones until
+    one side backs down or KetaPay decides.
+
+    ## Who can move money
+
+    **Your platform is never a party to an escrow.** Your secret key lets you create checkout
+    sessions and read your escrows, but never move escrowed money on its own. Paying,
+    delivering, releasing, cancelling, reporting a problem and adding a payout account are
+    your customer's decisions, so those calls need proof from that customer as well as your
+    key:
+
+    - a **customer token**, which your customer gets by entering a one-time code KetaPay sends
+      to their email or phone (see `Customer sessions`), sent in the `KetaPay-Customer-Token` header; or
+    - for a `release_code` escrow, the buyer's **6-digit release code**, entered by the seller.
+
+    KetaPay checks that the customer is the right party (only the buyer releases, only the
+    seller delivers) and only lets a party settle a dispute against themselves. A leaked secret key on
+    its own can therefore never pay out an escrow. KetaPay runs every dispute.
+
+    ## Conventions
+
+    - **Base URL:** `https://api.ketapay.com/v1`. The key decides the environment: `sk_test_`
+      keys use the sandbox with test money, `sk_live_` keys move real money. Every object
+      carries `livemode`.
+    - **Amounts** are integers in kobo (`250000` = ₦2,500.00). Currency is always `NGN`.
+    - **Dates** are ISO 8601 strings in UTC.
+    - **IDs** are UUIDs. Every object has an `object` field naming its type.
+    - **Your references:** every resource you create takes `external_reference` (your own id,
+      indexed and filterable) and `metadata` (up to 20 string keys, 40 characters per key, 500
+      per value). KetaPay never reads `metadata`.
+    - **Lists** are cursor paginated: pass `limit` (1 to 100, default 20) and the `next_cursor`
+      from the previous page as `cursor`. Newest first.
+    - **Idempotency:** every `POST` requires an `Idempotency-Key` header (any unique string up to
+      255 characters, a UUID is ideal). A retry with the same key and body returns the first
+      response; the same key with a different body returns `409 idempotency_key_reused`. Keys
+      are kept for 24 hours.
+    - **Rate limits:** 100 requests per 10 seconds per key. Every response carries
+      `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`. Over the limit you
+      get `429 rate_limited`; wait until `X-RateLimit-Reset`.
+    - **Errors** always have the same shape (see `Error`). Branch on `code`, never on `message`.
+    - **Request ids:** every response has a `KetaPay-Request-Id` header. Quote it to support.
+    - **Versioning:** additive changes (new fields, new event types, new optional parameters)
+      ship without notice, so ignore fields you don't know. Breaking changes only ship in a new
+      version, with a dated changelog.
+
+    ## Webhooks
+
+    KetaPay sends events to the endpoints you register (see `Webhook endpoints` and the
+    `webhooks` section). Each delivery is a `POST` with the `Event` as its JSON body and a
+    signature header:
+
+    ```
+    KetaPay-Signature: t=1791640000,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
+    ```
+
+    `v1` is the hex HMAC-SHA256 of `"{t}.{raw request body}"` keyed with the endpoint's signing
+    secret (`whsec_...`). Verify it against the raw body before parsing, compare in constant
+    time, and reject anything where `t` is more than 5 minutes old. `@ketapay/node` does all of
+    this in `ketapay.webhooks.verify()`.
+
+    Respond with any `2xx` within 10 seconds. Anything else is retried with exponential backoff
+    for 3 days, after which the endpoint is marked `failing` and its owner is emailed. Events can
+    arrive more than once and out of order: deduplicate on `id`, and use `GET /escrows/{id}` when
+    you need the current state.
+
+    When you rotate a signing secret, both secrets sign every delivery for 24 hours and the
+    header carries one `v1` per secret (`t=...,v1=<new>,v1=<old>`); accept the request if any
+    `v1` matches.
+
+    ## Sandbox
+
+    `sk_test_` keys run everything against test money. In the sandbox:
+
+    - No email, WhatsApp or SMS is sent. Every one-time code is `123456`.
+    - Pay a checkout session with `POST /test_helpers/checkout_sessions/{id}/pay`, or on the
+      hosted checkout with the test cards it lists.
+    - Move an escrow through any state (deliver, release, auto-release, disputes, evidence
+      requests, chargebacks, failed payouts and refunds) with
+      `POST /test_helpers/escrows/{id}/simulate`, so you can test every webhook without a real
+      buyer or seller.
+    - Payout account `0000000000` (any bank) succeeds; `0000000001` fails, so you can test
+      `payout.failed`.
+
+    Test helpers return `404 test_mode_only` with a live key.
+
+    ## Security
+
+    - **Keys.** Keep secret keys on your server, never in an app, a browser or a repository.
+      Give each system its own key with only the scopes it needs. Roll a key from the dashboard
+      at once if it may have leaked; KetaPay also revokes `sk_live_` keys reported by GitHub
+      secret scanning and emails you.
+    - **Customer tokens** are as sensitive as a password for 15 minutes. Keep them on your
+      server, never log them, and never pass them to another customer.
+    - **Card numbers** must never touch your systems. Collect cards only through KetaPay's
+      hosted checkout or `@ketapay/checkout`.
+    - **Webhooks.** Verify every signature against the raw body, reject old timestamps, and
+      treat the event as a hint: fetch the object before acting on large amounts. Deliveries
+      come from the IP addresses listed at docs.ketapay.com/webhooks/ips.
+    - **HTTPS only.** Plain HTTP requests are refused, not redirected. TLS 1.2 or later.
+    - **Your customers' data.** You receive your customers' names, emails and phone numbers back
+      from KetaPay. Handle them under your data processing agreement with KetaPay and the
+      Nigeria Data Protection Act 2023.
+    - **Reporting a vulnerability:** security@ketapay.com (see ketapay.com/.well-known/security.txt).
+  license:
+    name: Proprietary
+    url: https://ketapay.com/terms
+  contact:
+    name: KetaPay developers
+    email: developers@ketapay.com
+    url: https://docs.ketapay.com
+servers:
+  - url: https://api.ketapay.com/v1
+    description: Sandbox and live (the key prefix picks which)
+security:
+  - secretKey: []
+tags:
+  - name: Checkout sessions
+    description: |
+      A checkout session is one agreement waiting to be paid. Create it from your server (the
+      price and the milestones never come from the browser), then either open its `url` with
+      `@ketapay/checkout` or a redirect, or show the payment details in your own UI with
+      `POST /checkout_sessions/{id}/bank_transfer`. Once the buyer pays, KetaPay creates the
+      escrow and sends `escrow.funded`.
+  - name: Customer sessions
+    description: |
+      Proof that your customer, not just your platform, is making a request. KetaPay sends a
+      one-time code to the customer's email, or to their phone (WhatsApp, falling back to SMS);
+      your UI collects it and you exchange it for a customer token valid for 15 minutes. Send
+      the token in the `KetaPay-Customer-Token` header on the calls that need it. A token only
+      works for escrows where that person is the buyer or the seller, and only with the secret
+      key that created it.
+  - name: Escrows
+    description: |
+      An escrow holds the buyer's money until its milestones are released. Your key alone can
+      read escrows and flag one for KetaPay to review. Delivering, releasing and cancelling also
+      need the right customer's proof.
+  - name: Disputes
+    description: |
+      Either side can open a dispute, on KetaPay's pages or through your UI: the buyer when
+      something wasn't delivered as agreed, the seller when the buyer won't release or respond.
+      KetaPay runs it end to end and decides from the evidence both sides submit. An escrow can
+      have several disputes over its life, one per milestone at a time.
+
+      **Settling without KetaPay.** While a dispute is open, either side can back down: the
+      buyer can release, the seller can refund (`POST /disputes/{id}/concede`), and whoever
+      opened it can withdraw it. Nobody can settle in their own favour; only KetaPay decides
+      against a party.
+
+      **Evidence.** The buyer and the seller each submit statements and files (photos, videos,
+      documents, chat screenshots), either in the dispute room at the dispute's `url` or
+      through your UI: upload each file with `POST /files`, then submit them with
+      `POST /disputes/{id}/evidence`. When KetaPay needs more from someone, the dispute's
+      `awaiting_evidence_from` and `evidence_due_at` say who and by when, and you get
+      `dispute.evidence_requested` so you can prompt them in your app. Evidence is only visible
+      to the two parties and KetaPay; your key alone cannot read it.
+  - name: Payout accounts
+    description: |
+      Where a customer's money goes: a seller's releases, or a buyer's refund that couldn't go
+      back to their card. The account can be in any name (the customer's, their business's, a
+      family member's), so the protection is who can add it: only that customer, by confirming
+      a one-time code sent to their email or phone. The code message names the
+      bank and the last 4 digits, so the seller sees exactly what they are approving.
+
+      Nobody else can add or change a seller's payout account: not your platform or its staff,
+      not anyone holding your secret key, not someone with the seller's customer token alone,
+      and not KetaPay staff. Accounts cannot be edited; a change means adding a new account and
+      confirming it. Every change is logged and the seller is notified.
+
+      Each release is paid to the seller's active payout account automatically. If they have
+      none yet, or the transfer fails, the money waits safely in their KetaPay balance and is
+      sent as soon as they confirm one. Each milestone's `payout` shows where its money is.
+  - name: Refunds
+    description: |
+      Money returned to the buyer (a cancellation, a seller conceding, or a dispute KetaPay
+      decided for the buyer) goes back the way it came: to the card, or to the bank account the
+      transfer came from. Card refunds take 5 to 10 working days to show, depending on the
+      buyer's bank.
+
+      If that fails (the card has expired or been closed, or the sending account can't receive
+      money), the refund goes to the buyer's KetaPay balance instead, and KetaPay asks the
+      buyer to withdraw it to a bank account they confirm with a one-time code (the same
+      `Payout accounts` flow sellers use). Refunded money is never lost and never goes to anyone
+      but the buyer. Each milestone's `refund` shows where its money is.
+  - name: Chargebacks
+    description: |
+      A chargeback is when the buyer asks their card bank to reverse a card payment, outside
+      KetaPay's dispute process. Banks can allow this weeks after payment, even after the
+      seller has been paid.
+
+      **KetaPay handles every chargeback.** It contests it with the evidence the escrow already
+      holds: what was agreed, what the seller delivered, and the buyer's own release (confirmed
+      with a one-time code or release code, which is strong proof). The seller can add more
+      through `POST /chargebacks/{id}/evidence`.
+
+      **If the chargeback arrives before release,** the affected milestones freeze until the
+      bank decides. **If KetaPay loses after release,** the amount is recovered from the
+      seller's KetaPay balance and later payouts, and your commission on those milestones is
+      reversed from your commission balance. If it can't be recovered from the seller, KetaPay
+      absorbs the loss. You get `chargeback.opened` and `chargeback.closed`; you never need to
+      act.
+  - name: Files
+    description: |
+      Upload a file once, then refer to it by id in checkout attachments, milestone deliveries
+      and dispute evidence. JPEG, PNG, HEIC, WebP, PDF and MP4, up to 25 MB each.
+  - name: Banks
+    description: Nigerian banks for your payout account form.
+  - name: Webhook endpoints
+    description: URLs on your server that receive events.
+  - name: Test helpers
+    description: Sandbox only. Drive checkout sessions and escrows through every state without real customers.
+  - name: Events
+    description: |
+      Every change you can act on, kept for 30 days. Use the list to catch up on anything your
+      endpoint missed.
+paths:
+  /checkout_sessions:
+    post:
+      operationId: createCheckoutSession
+      tags:
+        - Checkout sessions
+      summary: Create a checkout session
+      description: |
+        Starts checkout for one agreement. Call this from your server with your secret key.
+
+        **What is agreed.** `title` and `description` (both required) say what is being bought;
+        `images` show it (the first is the cover on checkout, in messages and on the escrow);
+        `attachments` hold documents such as a brief, a contract or title papers. KetaPay copies
+        all of it when the session is created and keeps that copy with the escrow as evidence
+        for any dispute, so later changes to your listing or record don't change what was
+        agreed.
+
+        **Milestones.** Pass `milestones` to split the payment into stages released one at a
+        time, in order. Leave it out for a single payment: KetaPay creates one milestone for
+        the whole `amount`. When you pass milestones, their amounts must add up to `amount`.
+
+        **Release.** `release.method` is `buyer_confirms` (the buyer releases each delivered
+        milestone) or `release_code` (in person: the seller enters the buyer's code).
+        `release.auto_release_hours` releases a delivered milestone when the buyer neither
+        releases nor reports a problem in that time; leave it null where silence should never
+        pay the seller, such as legal or property work.
+
+        **Parties.** The buyer and the seller are people, each identified by an email address, a
+        Nigerian phone number, or both. At least one is required; send both when you have them,
+        because KetaPay messages people on every channel it knows (release codes and dispute
+        deadlines are easy to miss in one inbox).
+
+        KetaPay matches each party to a KetaPay account by email first, then phone. Someone
+        without an account gets one from what you send and claims it with a one-time code to
+        that email or phone, so neither side has to install KetaPay. If the email and phone
+        belong to two different KetaPay accounts, the request fails with
+        `party_identity_conflict`; send just one. The buyer and seller must be different
+        people (`parties_must_differ`). You
+        never send the seller's bank details: the seller adds them, with their own one-time
+        code, on KetaPay's pages or through `POST /payout_accounts`.
+
+        **Fees.** The buyer pays the amount plus KetaPay's fee and VAT on that fee. The seller's
+        fee and your commission come out of each release. Nothing is charged to the seller or
+        earned by you on money refunded to the buyer. The response shows every figure in `fees`.
+
+        **Limits.** Amounts above the buyer's verification level are allowed here; the buyer is
+        asked to verify their identity before paying (the hosted checkout does this for you).
+      x-required-scope: checkout_sessions:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutSessionRequest'
+            examples:
+              milestones:
+                summary: Services in three milestones
+                value:
+                  amount: 150000000
+                  category: services
+                  title: Company website
+                  description: Five-page marketing site with blog, built on Next.js. Brief attached.
+                  attachments:
+                    - name: Project brief.pdf
+                      url: https://files.example.com/briefs/4471.pdf
+                  milestones:
+                    - title: Design
+                      description: Homepage and inner page designs, two revision rounds
+                      amount: 40000000
+                      due_date: '2026-10-24'
+                    - title: Build
+                      amount: 80000000
+                      due_date: '2026-11-14'
+                    - title: Launch
+                      amount: 30000000
+                      due_date: '2026-11-21'
+                  buyer:
+                    phone: '+2348012345678'
+                    name: Ada Obi
+                    email: ada@example.com
+                  seller:
+                    email: tunde.bello@example.com
+                    phone: '+2348098765432'
+                    name: Tunde Bello
+                  release:
+                    method: buyer_confirms
+                    auto_release_hours: 168
+                  commission:
+                    rate_bps: 1000
+                  return_url: https://example.com/projects/4471
+                  external_reference: proj_4471
+              single:
+                summary: One-off sale handed over in person
+                value:
+                  amount: 45000000
+                  category: goods
+                  title: iPhone 15 Pro Max 256GB
+                  description: Used, 91% battery, no scratches, Face ID works. Comes with box and cable.
+                  images:
+                    - url: https://cdn.example.com/listings/8812/1.jpg
+                    - url: https://cdn.example.com/listings/8812/2.jpg
+                  buyer:
+                    phone: '+2348012345678'
+                  seller:
+                    email: tunde.bello@example.com
+                  release:
+                    method: release_code
+                  commission:
+                    rate_bps: 500
+                    max_amount: 2000000
+                  external_reference: ord_7781
+      responses:
+        '201':
+          description: Checkout session created
+          headers:
+            KetaPay-Request-Id:
+              $ref: '#/components/headers/KetaPay-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+              examples:
+                open:
+                  $ref: '#/components/examples/OpenCheckoutSession'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      operationId: listCheckoutSessions
+      tags:
+        - Checkout sessions
+      summary: List checkout sessions
+      x-required-scope: checkout_sessions:read
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ExternalReference'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CheckoutSessionStatus'
+      responses:
+        '200':
+          description: A page of checkout sessions, newest first
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListMeta'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CheckoutSession'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /checkout_sessions/{id}:
+    get:
+      operationId: getCheckoutSession
+      tags:
+        - Checkout sessions
+      summary: Get a checkout session
+      x-required-scope: checkout_sessions:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The checkout session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+              examples:
+                open:
+                  $ref: '#/components/examples/OpenCheckoutSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /checkout_sessions/{id}/cancel:
+    post:
+      operationId: cancelCheckoutSession
+      tags:
+        - Checkout sessions
+      summary: Cancel a checkout session
+      description: |
+        Closes an unpaid session so it can no longer be paid (the deal fell through, the listing
+        was removed). Only `open` sessions can be cancelled; once paid, the money is in escrow
+        and only the buyer, the seller or KetaPay can end it.
+      x-required-scope: checkout_sessions:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The cancelled checkout session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /checkout_sessions/{id}/bank_transfer:
+    post:
+      operationId: createCheckoutSessionBankTransfer
+      tags:
+        - Checkout sessions
+      summary: Get bank transfer details to pay
+      description: |
+        For your own payment screen. Returns a one-time account number for this session; when
+        the buyer transfers exactly `amount` to it before `expires_at`, the escrow is funded and
+        `escrow.funded` is sent. Calling again returns the same account while it is valid.
+
+        Needs the buyer's customer token, so the payer is verified before money is taken. If the
+        amount is above the buyer's verification level, this fails with `verification_required`;
+        send the buyer to the session's `url` to verify. Card payments go through KetaPay's
+        secure card fields (in `@ketapay/checkout` or the hosted page) so card numbers never
+        touch your servers.
+      x-required-scope: checkout_sessions:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Transfer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankTransferInstructions'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /customer_sessions:
+    post:
+      operationId: createCustomerSession
+      tags:
+        - Customer sessions
+      summary: Send a one-time code to a customer
+      description: |
+        Sends a 6-digit code to the customer's email or phone (send one). Limited to 5 codes per
+        email or phone per hour; a code expires after 10 minutes. Customers without a KetaPay
+        account can verify too: their account is created when the code is verified.
+      x-required-scope: customer_sessions:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerSessionRequest'
+            example:
+              phone: '+2348012345678'
+      responses:
+        '201':
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSession'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /customer_sessions/{id}/verify:
+    post:
+      operationId: verifyCustomerSession
+      tags:
+        - Customer sessions
+      summary: Exchange the code for a customer token
+      description: |
+        Five wrong codes end the session; start a new one. The token is returned only here and
+        lasts 15 minutes. Keep it on your server and do not log it.
+      x-required-scope: customer_sessions:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/OneTimeCode'
+      responses:
+        '200':
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerToken'
+        '400':
+          $ref: '#/components/responses/CodeRejected'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows:
+    get:
+      operationId: listEscrows
+      tags:
+        - Escrows
+      summary: List escrows
+      description: Escrows started from your checkout sessions, newest first.
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ExternalReference'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/EscrowStatus'
+        - name: created_gte
+          in: query
+          description: Only escrows created at or after this time
+          schema:
+            type: string
+            format: date-time
+        - name: created_lt
+          in: query
+          description: Only escrows created before this time
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: A page of escrows
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListMeta'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Escrow'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}:
+    get:
+      operationId: getEscrow
+      tags:
+        - Escrows
+      summary: Get an escrow
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The escrow, with its milestones and timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Escrow'
+              examples:
+                active:
+                  $ref: '#/components/examples/ActiveEscrow'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/milestones/{milestone_id}/deliver:
+    post:
+      operationId: deliverMilestone
+      tags:
+        - Escrows
+      summary: Mark a milestone delivered
+      description: |
+        The seller says their part of this milestone is done, with the seller's customer token.
+        Only the current milestone (the first one not yet released) can be delivered. Moves no
+        money: the buyer then releases it, reports a problem, or (with `auto_release_hours`)
+        lets the time run out. Sends `milestone.delivered`.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/MilestoneId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliverMilestoneRequest'
+            example:
+              note: Designs ready for review. Figma link and exports attached.
+              attachments:
+                - name: Homepage.png
+                  url: https://files.example.com/proj_4471/homepage.png
+      responses:
+        '200':
+          $ref: '#/components/responses/EscrowUpdated'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/milestones/{milestone_id}/release:
+    post:
+      operationId: releaseMilestone
+      tags:
+        - Escrows
+      summary: Release a milestone to the seller
+      description: |
+        Pays the seller for this milestone. The buyer's decision, proven one of two ways:
+
+        - **`buyer_confirms` escrows:** the buyer's customer token, once the milestone is
+          `delivered`.
+        - **`release_code` escrows:** the buyer's code for this milestone in `release_code`,
+          with or without the seller's token. Entering it delivers and releases in one step.
+          Five wrong codes lock code entry for that escrow for 1 hour and alert the buyer.
+
+        Refused while the milestone is disputed (use `POST /disputes/{id}/concede`) or the escrow
+        is under KetaPay review. Sends
+        `milestone.released`, and `escrow.completed` after the last milestone.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+        - secretKey: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/MilestoneId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseMilestoneRequest'
+            example:
+              release_code: '731045'
+      responses:
+        '200':
+          $ref: '#/components/responses/EscrowUpdated'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/milestones/{milestone_id}/release_code:
+    get:
+      operationId: getMilestoneReleaseCode
+      tags:
+        - Escrows
+      summary: Get the buyer's release code
+      description: |
+        `release_code` escrows only. For your buyer's screen: the buyer gives this code to the
+        seller once satisfied. Needs the buyer's customer token; never show it to the seller.
+        KetaPay also sends it to the buyer by email and by WhatsApp or SMS.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/MilestoneId'
+      responses:
+        '200':
+          description: The release code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseCode'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/cancel:
+    post:
+      operationId: cancelEscrow
+      tags:
+        - Escrows
+      summary: Cancel and refund the buyer
+      description: |
+        Refunds the buyer every milestone not yet released; released milestones stay paid. Money
+        only ever goes back to the account that paid. KetaPay's buyer fee and VAT are not
+        refunded once the escrow is funded, the same rule as in the KetaPay app.
+
+        - **Seller's token:** any time (the seller gives up the rest of the deal).
+        - **Buyer's token:** only before any milestone is delivered or released. After that the
+          buyer reports a problem instead.
+
+        Refused while a dispute is open (the seller can refund through
+        `POST /disputes/{id}/concede`). Sends `escrow.refunded`, or `escrow.completed` if some
+        milestones were already released.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelEscrowRequest'
+            example:
+              reason: Project cancelled by agreement
+      responses:
+        '200':
+          $ref: '#/components/responses/EscrowUpdated'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/flag:
+    post:
+      operationId: flagEscrow
+      tags:
+        - Escrows
+      summary: Flag an escrow for review
+      description: |
+        Asks KetaPay to review an escrow, for example when you have removed a listing as
+        fraudulent or banned a user. KetaPay decides what happens, which can include holding
+        releases while it looks into it. The buyer and seller are not told who flagged it.
+      x-required-scope: escrows:flag
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFlagRequest'
+            example:
+              reason: banned_seller
+              note: Seller account banned on 2026-10-09 after three fraud reports.
+      responses:
+        '201':
+          description: Flag recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flag'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/disputes:
+    post:
+      operationId: openDispute
+      tags:
+        - Disputes
+      summary: Open a dispute
+      description: |
+        Either side can open one, with their customer token, about one milestone or the whole
+        escrow:
+
+        - **The buyer**, when something was not delivered or not as agreed.
+        - **The seller**, when they delivered but the buyer won't release or respond
+          (`buyer_unresponsive`). This matters most where `auto_release_hours` is null.
+
+        The affected milestones freeze: their auto-release pauses and the normal release and
+        cancel calls are refused until the dispute ends. Only one dispute per milestone can be
+        open at a time. Evidence and the discussion happen in the dispute room at the returned
+        `url`, or through `POST /disputes/{id}/evidence`. Sends `dispute.opened`.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDisputeRequest'
+            example:
+              milestone_id: 7c2e9a41-3b5d-4f6e-8a1c-9d0b2e4f6a83
+              reason: not_as_agreed
+              description: The designs do not follow the brand guide in the brief.
+      responses:
+        '201':
+          description: Dispute opened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      operationId: listEscrowDisputes
+      tags:
+        - Disputes
+      summary: List an escrow's disputes
+      description: Every dispute on the escrow, open and resolved, newest first.
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The disputes
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - object
+                  - data
+                properties:
+                  object:
+                    type: string
+                    const: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dispute'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /disputes/{id}:
+    get:
+      operationId: getDispute
+      tags:
+        - Disputes
+      summary: Get a dispute
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The dispute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /disputes/{id}/concede:
+    post:
+      operationId: concedeDispute
+      tags:
+        - Disputes
+      summary: Settle against yourself
+      description: |
+        Ends the dispute in the other side's favour, the same rule as in the KetaPay app: a
+        party can only ever give money away, never take it.
+
+        - **Buyer's token:** releases the disputed milestones to the seller.
+        - **Seller's token:** refunds the disputed milestones to the buyer.
+
+        Whoever opened the dispute can concede too. Sends `dispute.resolved`, then the money
+        events.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The resolved dispute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /disputes/{id}/withdraw:
+    post:
+      operationId: withdrawDispute
+      tags:
+        - Disputes
+      summary: Withdraw a dispute
+      description: |
+        Only whoever opened it, with their customer token. No money moves; the deal carries on
+        where it was, and paused auto-release timers restart. Sends `dispute.resolved` with
+        `outcome` `withdrawn`.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The withdrawn dispute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /disputes/{id}/evidence:
+    post:
+      operationId: submitDisputeEvidence
+      tags:
+        - Disputes
+      summary: Submit evidence
+      description: |
+        Adds a statement and files to an open dispute, for the buyer or the seller whose customer
+        token you send. Each side can submit as many times as they need until KetaPay decides.
+        Sends `dispute.evidence_submitted`.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitEvidenceRequest'
+            example:
+              statement: The brand guide on page 3 of the brief asks for the purple palette. These designs use blue.
+              files:
+                - 5d8f2b1a-7c3e-4a9d-b6f0-2e4c8a1b3d57
+                - 1a3c5e7f-9b2d-4f6a-8c0e-3b5d7f9a1c24
+      responses:
+        '201':
+          description: Evidence added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evidence'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      operationId: listDisputeEvidence
+      tags:
+        - Disputes
+      summary: List evidence
+      description: Everything both sides have submitted, oldest first. Needs the buyer's or the seller's customer token.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - object
+                  - data
+                properties:
+                  object:
+                    type: string
+                    const: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Evidence'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/chargebacks:
+    get:
+      operationId: listEscrowChargebacks
+      tags:
+        - Chargebacks
+      summary: List an escrow's chargebacks
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The chargebacks, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - object
+                  - data
+                properties:
+                  object:
+                    type: string
+                    const: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Chargeback'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /chargebacks/{id}:
+    get:
+      operationId: getChargeback
+      tags:
+        - Chargebacks
+      summary: Get a chargeback
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The chargeback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chargeback'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /chargebacks/{id}/evidence:
+    post:
+      operationId: submitChargebackEvidence
+      tags:
+        - Chargebacks
+      summary: Add evidence against a chargeback
+      description: |
+        For the seller, with their customer token, while the chargeback is `needs_response`.
+        KetaPay already sends the bank the agreement, the delivery and the buyer's release; add
+        anything else that proves delivery (courier receipts, signed handover forms, messages).
+        Files are uploaded with `POST /files` using purpose `dispute_evidence`.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitEvidenceRequest'
+      responses:
+        '201':
+          description: Evidence added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evidence'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /files:
+    post:
+      operationId: uploadFile
+      tags:
+        - Files
+      summary: Upload a file
+      description: |
+        `purpose` decides who may upload and where the file can be used:
+
+        | Purpose | Proof needed | Used in |
+        | --- | --- | --- |
+        | `agreement` | Your key | Checkout session `attachments` |
+        | `delivery` | Key plus the seller's customer token | Milestone delivery `attachments` |
+        | `dispute_evidence` | Key plus the buyer's or seller's customer token | Dispute evidence `files` |
+
+        A file can only be used by the customer who uploaded it, and only for its purpose.
+        Unused files are deleted after 24 hours.
+      x-required-scope: files:write
+      security:
+        - secretKey: []
+          customerToken: []
+        - secretKey: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - purpose
+              properties:
+                file:
+                  type: string
+                  contentMediaType: application/octet-stream
+                  description: The file, up to 25 MB
+                purpose:
+                  $ref: '#/components/schemas/FilePurpose'
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /banks:
+    get:
+      operationId: listBanks
+      tags:
+        - Banks
+      summary: List banks
+      description: Every bank and microfinance bank a payout can go to, sorted by name. Not paginated.
+      x-required-scope: payout_accounts:read
+      responses:
+        '200':
+          description: The banks
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - object
+                  - data
+                properties:
+                  object:
+                    type: string
+                    const: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bank'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /payout_accounts:
+    post:
+      operationId: createPayoutAccount
+      tags:
+        - Payout accounts
+      summary: Add a seller's payout account
+      description: |
+        Starts adding a bank account for the customer whose token you send. KetaPay looks up the
+        account name with the bank (an unknown account fails with `bank_account_not_found`) and
+        sends the customer a one-time code naming the account ("Code to add Zenith Bank
+        ****6789"). The account stays `pending_confirmation`, and receives no money, until you
+        call `POST /payout_accounts/{id}/confirm` with that code within 10 minutes.
+
+        Confirming makes it the customer's payout account; any earlier one stops receiving money.
+      x-required-scope: payout_accounts:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayoutAccountRequest'
+            example:
+              bank_code: '057'
+              account_number: '0123456789'
+      responses:
+        '201':
+          description: Account looked up and confirmation code sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccount'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      operationId: listPayoutAccounts
+      tags:
+        - Payout accounts
+      summary: List a customer's payout accounts
+      x-required-scope: payout_accounts:read
+      security:
+        - secretKey: []
+          customerToken: []
+      responses:
+        '200':
+          description: The customer's payout accounts, active first
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - object
+                  - data
+                properties:
+                  object:
+                    type: string
+                    const: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PayoutAccount'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /payout_accounts/{id}/confirm:
+    post:
+      operationId: confirmPayoutAccount
+      tags:
+        - Payout accounts
+      summary: Confirm a payout account with the seller's code
+      description: |
+        Activates the account. Five wrong codes cancel it; start again with
+        `POST /payout_accounts`. Payouts waiting in the seller's KetaPay balance are sent to it
+        straight away.
+      x-required-scope: payout_accounts:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/OneTimeCode'
+      responses:
+        '200':
+          description: The active payout account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccount'
+        '400':
+          $ref: '#/components/responses/CodeRejected'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /payout_accounts/{id}:
+    delete:
+      operationId: deletePayoutAccount
+      tags:
+        - Payout accounts
+      summary: Remove a payout account
+      description: |
+        Removing the active account makes payouts wait in the seller's KetaPay balance until they
+        confirm a new one. Payouts already sent are not affected.
+      x-required-scope: payout_accounts:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deleted'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /webhook_endpoints:
+    post:
+      operationId: createWebhookEndpoint
+      tags:
+        - Webhook endpoints
+      summary: Create a webhook endpoint
+      description: |
+        Registers an HTTPS URL to receive events. The response is the only time `secret` is
+        shown; store it to verify signatures. Up to 10 endpoints per environment.
+      x-required-scope: webhook_endpoints:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookEndpointRequest'
+            example:
+              url: https://example.com/webhooks/ketapay
+              enabled_events:
+                - escrow.funded
+                - milestone.delivered
+                - milestone.released
+                - escrow.completed
+                - escrow.refunded
+                - dispute.opened
+                - dispute.resolved
+              description: Order service
+      responses:
+        '201':
+          description: Webhook endpoint created; `secret` is shown this once
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/WebhookEndpoint'
+                  - type: object
+                    required:
+                      - secret
+                    properties:
+                      secret:
+                        type: string
+                        description: Signing secret. Shown only in this response.
+                        example: whsec_9f8c1e2d7b6a5f4e3d2c1b0a9f8e7d6c
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      operationId: listWebhookEndpoints
+      tags:
+        - Webhook endpoints
+      summary: List webhook endpoints
+      x-required-scope: webhook_endpoints:read
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of webhook endpoints
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListMeta'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WebhookEndpoint'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /webhook_endpoints/{id}:
+    post:
+      operationId: updateWebhookEndpoint
+      tags:
+        - Webhook endpoints
+      summary: Update a webhook endpoint
+      description: Change the URL or the events, or re-enable an endpoint marked `failing` once it is fixed.
+      x-required-scope: webhook_endpoints:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWebhookEndpointRequest'
+            example:
+              status: enabled
+      responses:
+        '200':
+          description: The updated endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      operationId: getWebhookEndpoint
+      tags:
+        - Webhook endpoints
+      summary: Get a webhook endpoint
+      x-required-scope: webhook_endpoints:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The webhook endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    delete:
+      operationId: deleteWebhookEndpoint
+      tags:
+        - Webhook endpoints
+      summary: Delete a webhook endpoint
+      description: Stops all deliveries to this endpoint, including pending retries.
+      x-required-scope: webhook_endpoints:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The endpoint was deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deleted'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /webhook_endpoints/{id}/test:
+    post:
+      operationId: testWebhookEndpoint
+      tags:
+        - Webhook endpoints
+      summary: Send a test event
+      description: |
+        Sends a signed sample event of the type you choose to the endpoint right now and reports
+        what your server answered. Works with test and live keys; the event has `livemode` false
+        and an id starting `evt_test_`, so your handler can skip it.
+      x-required-scope: webhook_endpoints:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  $ref: '#/components/schemas/EventType'
+            example:
+              type: escrow.funded
+      responses:
+        '200':
+          description: What your endpoint answered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookTestResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /webhook_endpoints/{id}/rotate_secret:
+    post:
+      operationId: rotateWebhookSecret
+      tags:
+        - Webhook endpoints
+      summary: Rotate the signing secret
+      description: |
+        Issues a new signing secret, shown only in this response. The old secret keeps signing
+        alongside it for 24 hours (two `v1` values in `KetaPay-Signature`), so you can deploy
+        the new one without missing events.
+      x-required-scope: webhook_endpoints:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The new secret
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - object
+                  - secret
+                  - previous_secret_expires_at
+                properties:
+                  object:
+                    type: string
+                    const: webhook_secret
+                  secret:
+                    type: string
+                    example: whsec_2b7d9f1e3c5a8b0d4f6e2a9c7b1d3f5e
+                  previous_secret_expires_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /events:
+    get:
+      operationId: listEvents
+      tags:
+        - Events
+      summary: List events
+      description: Events from the last 30 days, newest first.
+      x-required-scope: events:read
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/EventType'
+        - name: created_gte
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: A page of events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListMeta'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags:
+        - Events
+      summary: Get an event
+      x-required-scope: events:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /test_helpers/checkout_sessions/{id}/pay:
+    post:
+      operationId: testPayCheckoutSession
+      tags:
+        - Test helpers
+      summary: Pay a checkout session (sandbox)
+      description: Funds the session as if the buyer paid, creates the escrow and sends `escrow.funded`.
+      x-required-scope: test_helpers:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum:
+                    - card
+                    - bank_transfer
+                  default: bank_transfer
+      responses:
+        '200':
+          description: The completed checkout session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+  /test_helpers/escrows/{id}/simulate:
+    post:
+      operationId: testSimulateEscrow
+      tags:
+        - Test helpers
+      summary: Simulate an escrow event (sandbox)
+      description: |
+        Does what a buyer, seller, bank or KetaPay mediator would do, with the same rules and
+        the same webhooks as the real thing (an action that would be refused for real is
+        refused here too, so you see the same errors).
+
+        | `action` | Acts as | Needs |
+        | --- | --- | --- |
+        | `deliver` | Seller | `milestone_id` |
+        | `release` | Buyer | `milestone_id` |
+        | `auto_release` | The clock: skips to the end of the auto-release window | `milestone_id` |
+        | `cancel` | `actor` (`buyer` or `seller`) | |
+        | `open_dispute` | `actor` | `milestone_id` optional, `reason` |
+        | `request_evidence` | KetaPay | `from` (`buyer`, `seller` or `both`) |
+        | `resolve_dispute` | KetaPay | `outcome`, `refunded_amount` for a partial refund |
+        | `open_chargeback` | The buyer's card bank | `amount` optional |
+        | `close_chargeback` | The card bank | `chargeback_status` (`won` or `lost`) |
+        | `fail_payout` | The seller's bank | `milestone_id` |
+        | `fail_refund` | The buyer's card bank | `milestone_id` |
+      x-required-scope: test_helpers:write
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulateRequest'
+            example:
+              action: deliver
+              milestone_id: 7c2e9a41-3b5d-4f6e-8a1c-9d0b2e4f6a83
+      responses:
+        '200':
+          $ref: '#/components/responses/EscrowUpdated'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+webhooks:
+  checkout_session.expired:
+    post:
+      operationId: onCheckoutSessionExpired
+      tags:
+        - Events
+      summary: checkout_session.expired
+      description: A checkout session reached `expires_at` without being paid. `data.object` is the `CheckoutSession`.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  escrow.funded:
+    post:
+      operationId: onEscrowFunded
+      tags:
+        - Events
+      summary: escrow.funded
+      description: |
+        The buyer paid and KetaPay holds the money. `data.object` is the new `Escrow`, whose
+        `checkout_session_id` and `external_reference` tie it to your record. This is the signal
+        to mark the order or project paid, not the checkout SDK's callback.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  milestone.delivered:
+    post:
+      operationId: onMilestoneDelivered
+      tags:
+        - Events
+      summary: milestone.delivered
+      description: |
+        The seller marked a milestone delivered. `data.object` is the `Escrow`;
+        `data.milestone_id` names the milestone. Its `auto_release_at` is set if the escrow
+        auto-releases.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  milestone.released:
+    post:
+      operationId: onMilestoneReleased
+      tags:
+        - Events
+      summary: milestone.released
+      description: |
+        A milestone was paid to the seller: the buyer released it, the release code was entered,
+        the auto-release time ran out, or KetaPay decided a dispute for the seller.
+        `data.object` is the `Escrow`; `data.milestone_id` names the milestone, whose
+        `commission` is your earning.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  escrow.completed:
+    post:
+      operationId: onEscrowCompleted
+      tags:
+        - Events
+      summary: escrow.completed
+      description: |
+        The escrow ended with at least one milestone paid to the seller: every milestone is
+        released, or the rest were refunded. Nothing more will move.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  escrow.refunded:
+    post:
+      operationId: onEscrowRefunded
+      tags:
+        - Events
+      summary: escrow.refunded
+      description: |
+        The escrow ended with everything returned to the buyer: it was cancelled before any
+        release, or KetaPay decided a dispute for the buyer. No commission is earned.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  dispute.opened:
+    post:
+      operationId: onDisputeOpened
+      tags:
+        - Events
+      summary: dispute.opened
+      description: The buyer reported a problem. The money stays held. `data.object` is the `Dispute`.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  dispute.evidence_requested:
+    post:
+      operationId: onDisputeEvidenceRequested
+      tags:
+        - Events
+      summary: dispute.evidence_requested
+      description: |
+        KetaPay needs more evidence. `data.object.awaiting_evidence_from` says from whom and
+        `evidence_due_at` by when; KetaPay also messages them. Prompt them in your app if you
+        built your own dispute screens. Missing the deadline lets KetaPay decide without it.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  dispute.evidence_submitted:
+    post:
+      operationId: onDisputeEvidenceSubmitted
+      tags:
+        - Events
+      summary: dispute.evidence_submitted
+      description: The buyer or the seller added evidence. `data.object` is the `Dispute`. The evidence itself is not included.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  dispute.resolved:
+    post:
+      operationId: onDisputeResolved
+      tags:
+        - Events
+      summary: dispute.resolved
+      description: |
+        The dispute ended. `data.object.outcome` says how. `milestone.released`,
+        `escrow.completed` or `escrow.refunded` events follow as the money moves.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  refund.sent:
+    post:
+      operationId: onRefundSent
+      tags:
+        - Events
+      summary: refund.sent
+      description: |
+        Money went back to the buyer's card or bank account. `data.object` is the `Refund`.
+        Card refunds can take 5 to 10 working days to show on the buyer's statement.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  refund.failed:
+    post:
+      operationId: onRefundFailed
+      tags:
+        - Events
+      summary: refund.failed
+      description: |
+        The refund couldn't go back the way the money came (expired or closed card, account that
+        can't receive). The money is safe in the buyer's KetaPay balance and KetaPay has asked
+        them to withdraw it. `data.object` is the `Refund`.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  chargeback.opened:
+    post:
+      operationId: onChargebackOpened
+      tags:
+        - Events
+      summary: chargeback.opened
+      description: |
+        The buyer's card bank opened a chargeback. KetaPay is contesting it; you don't need to
+        act. `data.object` is the `Chargeback`.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  chargeback.closed:
+    post:
+      operationId: onChargebackClosed
+      tags:
+        - Events
+      summary: chargeback.closed
+      description: |
+        The bank decided. `data.object.status` is `won` (nothing changes) or `lost` (the amount
+        is recovered from the seller and your commission on the affected milestones is reversed;
+        see `commission_reversed`).
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  payout.sent:
+    post:
+      operationId: onPayoutSent
+      tags:
+        - Events
+      summary: payout.sent
+      description: A seller's payout for a milestone reached their bank. `data.object` is the `Payout`.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  payout.failed:
+    post:
+      operationId: onPayoutFailed
+      tags:
+        - Events
+      summary: payout.failed
+      description: |
+        The bank rejected a seller's payout. The money is back in the seller's KetaPay balance
+        and KetaPay has asked them to fix their account; it is sent again once they do.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+components:
+  securitySchemes:
+    secretKey:
+      type: http
+      scheme: bearer
+      bearerFormat: sk_test_... or sk_live_...
+      description: |
+        `Authorization: Bearer <secret key>`. Secret keys belong to your organisation, are shown
+        once when created in the dashboard, and are scoped (see `x-required-scope` on each
+        operation). Keep them on your server. Live keys are issued after your business is
+        verified. Publishable keys (`pk_`) are only for `@ketapay/checkout` and don't work here.
+    customerToken:
+      type: apiKey
+      in: header
+      name: KetaPay-Customer-Token
+      description: |
+        Proof that your customer approved this call, from `POST /customer_sessions/{id}/verify`.
+        Sent together with your secret key. Valid for 15 minutes, for that customer's escrows
+        only.
+  headers:
+    KetaPay-Request-Id:
+      description: Unique id of this request. Quote it to support.
+      schema:
+        type: string
+        example: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MilestoneId:
+      name: milestone_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique key for this operation. Retries with the same key return the first result.
+      schema:
+        type: string
+        maxLength: 255
+        example: 7f3e2a10-6c4d-4b8e-9a1f-2d5c8e7b6a40
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      description: The `next_cursor` from the previous page
+      schema:
+        type: string
+    ExternalReference:
+      name: external_reference
+      in: query
+      description: Only items with this `external_reference`
+      schema:
+        type: string
+    SignatureHeader:
+      name: KetaPay-Signature
+      in: header
+      required: true
+      description: '`t=<unix seconds>,v1=<hex HMAC-SHA256 of "t.body">`'
+      schema:
+        type: string
+        example: t=1791640000,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
+  requestBodies:
+    EventDelivery:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+    OneTimeCode:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+            properties:
+              code:
+                type: string
+                pattern: ^\d{6}$
+                example: '482913'
+  responses:
+    EscrowUpdated:
+      description: The updated escrow
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Escrow'
+    EventAcknowledged:
+      description: Any 2xx acknowledges the event
+    InvalidRequest:
+      description: A parameter is missing or invalid; `param` names it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: invalid_request_error
+              code: parameter_invalid
+              message: buyer.phone must be a Nigerian mobile number in E.164 format, like +2348012345678.
+              param: buyer.phone
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    CodeRejected:
+      description: Wrong or expired code (`code_invalid`, `code_expired`, `too_many_attempts`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: invalid_request_error
+              code: code_invalid
+              message: That code is not correct. 4 attempts left.
+              param: code
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    Unauthenticated:
+      description: The key is missing, malformed or revoked
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: authentication_error
+              code: api_key_invalid
+              message: This API key is invalid or has been revoked.
+              param: null
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    Forbidden:
+      description: The key lacks the scope, or the organisation can't do this yet (for example live keys before verification)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: permission_error
+              code: missing_scope
+              message: This key does not have the checkout_sessions:write scope.
+              param: null
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    NotParty:
+      description: The customer token is missing, expired, or belongs to someone who can't do this; or the buyer must verify their identity first (`verification_required`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: permission_error
+              code: customer_not_allowed
+              message: Only the buyer can release this milestone.
+              param: null
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    StateConflict:
+      description: Not allowed in the current state (`escrow_state_invalid`, `milestone_not_current`, `milestone_not_delivered`, `dispute_open`, `escrow_under_review`, `checkout_session_not_open`, `release_code_locked`), or the idempotency key was reused
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: invalid_request_error
+              code: dispute_open
+              message: This escrow has an open dispute. KetaPay will release or refund it when the dispute ends.
+              param: null
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    NotFound:
+      description: No such object for this organisation and environment
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: invalid_request_error
+              code: resource_not_found
+              message: No escrow with id 3b1f6c2e-8d4a-4e7b-9c1d-2a5f8e6b7c90.
+              param: id
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    IdempotencyConflict:
+      description: The Idempotency-Key was used before with a different request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: idempotency_error
+              code: idempotency_key_reused
+              message: This Idempotency-Key was already used with a different request.
+              param: null
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    RateLimited:
+      description: Too many requests for this key
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          description: Unix seconds when the window resets
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: rate_limit_error
+              code: rate_limited
+              message: Too many requests. Retry after the time in X-RateLimit-Reset.
+              param: null
+              request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+  schemas:
+    Amount:
+      type: integer
+      minimum: 0
+      description: Amount in kobo
+      example: 45000000
+    Metadata:
+      type: object
+      maxProperties: 20
+      propertyNames:
+        maxLength: 40
+      additionalProperties:
+        type: string
+        maxLength: 500
+      description: Your own key-value pairs. KetaPay stores them and never reads them.
+      example:
+        project_id: '4471'
+    ExternalReference:
+      type:
+        - string
+        - 'null'
+      maxLength: 255
+      description: Your own id for this object, for example your order or project id. Filterable.
+      example: proj_4471
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+      description: Email address. Matched without regard to case.
+      example: ada@example.com
+    Phone:
+      type: string
+      pattern: ^\+234[789][01]\d{8}$
+      description: Nigerian mobile number in E.164 format
+      example: '+2348012345678'
+    Image:
+      type: object
+      description: |
+        Send either `file` (an id from `POST /files` with purpose `agreement`) or `url` (an HTTPS
+        link KetaPay copies). JPEG, PNG, HEIC or WebP. Responses carry KetaPay's own `url` plus a
+        small `thumbnail_url`.
+      anyOf:
+        - type: object
+          required:
+            - file
+          properties:
+            file:
+              type: string
+              format: uuid
+        - type: object
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              format: uri
+      properties:
+        file:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        thumbnail_url:
+          type: string
+          format: uri
+          readOnly: true
+        alt:
+          type:
+            - string
+            - 'null'
+          maxLength: 200
+          description: Short description, for screen readers
+    Attachment:
+      type: object
+      description: |
+        Send either `file` (an id from `POST /files`) or `url` (an HTTPS link KetaPay copies, so
+        it survives your copy being deleted). Responses always carry KetaPay's own `url`.
+      anyOf:
+        - type: object
+          required:
+            - file
+          properties:
+            file:
+              type: string
+              format: uuid
+        - type: object
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              format: uri
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          example: Project brief.pdf
+        file:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+    Deleted:
+      type: object
+      required:
+        - id
+        - object
+        - deleted
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+        deleted:
+          type: boolean
+          const: true
+    ListMeta:
+      type: object
+      required:
+        - object
+        - has_more
+        - next_cursor
+      properties:
+        object:
+          type: string
+          const: list
+        has_more:
+          type: boolean
+        next_cursor:
+          type:
+            - string
+            - 'null'
+          description: Pass as `cursor` to get the next page; null on the last page
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - type
+            - code
+            - message
+            - param
+            - request_id
+          properties:
+            type:
+              type: string
+              enum:
+                - invalid_request_error
+                - authentication_error
+                - permission_error
+                - idempotency_error
+                - rate_limit_error
+                - api_error
+              description: The broad class. `api_error` means something failed on KetaPay's side; retry with the same Idempotency-Key.
+            code:
+              type: string
+              description: |
+                Specific reason. Known codes: `parameter_missing`, `parameter_invalid`,
+                `contact_required`, `party_identity_conflict`, `parties_must_differ`, `milestones_total_mismatch`, `commission_exceeds_contract`,
+                `release_settings_invalid`, `verification_required`, `checkout_session_not_open`,
+                `escrow_already_flagged`, `escrow_state_invalid`, `milestone_not_current`,
+                `milestone_not_delivered`, `dispute_open`, `escrow_under_review`,
+                `release_code_invalid`, `release_code_locked`, `code_invalid`, `code_expired`,
+                `too_many_attempts`, `customer_token_required`, `customer_token_expired`,
+                `customer_not_allowed`, `bank_account_not_found`, `file_too_large`,
+                `file_type_not_allowed`, `file_not_usable`, `resource_not_found`,
+                `api_key_invalid`, `api_key_expired`, `missing_scope`, `live_mode_not_enabled`,
+                `idempotency_key_missing`, `idempotency_key_reused`, `rate_limited`, `test_mode_only`,
+                `internal_error`. New codes may be added.
+              example: parameter_invalid
+            message:
+              type: string
+              description: Human-readable explanation for your logs. Do not branch on it.
+            param:
+              type:
+                - string
+                - 'null'
+              description: The request field at fault, in dot notation
+              example: buyer.phone
+            request_id:
+              type: string
+              example: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
+    Category:
+      type: string
+      enum:
+        - goods
+        - services
+        - property
+        - vehicle
+        - digital
+        - other
+      default: other
+      description: What kind of deal this is. KetaPay uses it for risk checks and dispute handling.
+    Release:
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+            - buyer_confirms
+            - release_code
+          default: buyer_confirms
+          description: |
+            `buyer_confirms`: the seller delivers each milestone and the buyer releases it.
+            `release_code`: in person; the buyer gives the seller a 6-digit code per milestone
+            once satisfied, and the seller entering it releases that milestone.
+        auto_release_hours:
+          type:
+            - integer
+            - 'null'
+          minimum: 24
+          maximum: 720
+          default: null
+          description: |
+            `buyer_confirms` only. Hours after a milestone is delivered before it releases on its
+            own if the buyer neither releases it nor reports a problem. Null means it never
+            releases without the buyer. Typical values: 48 for goods, 168 for services.
+    MilestoneInput:
+      type: object
+      required:
+        - title
+        - amount
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          example: Design
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 500
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          minimum: 1
+        due_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: When the seller expects to deliver. Shown to both sides; KetaPay does not act on it.
+    PartyInput:
+      type: object
+      description: At least one of `email` and `phone`. Both is better.
+      anyOf:
+        - type: object
+          required:
+            - email
+          properties:
+            email:
+              $ref: '#/components/schemas/Email'
+        - type: object
+          required:
+            - phone
+          properties:
+            phone:
+              $ref: '#/components/schemas/Phone'
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        phone:
+          $ref: '#/components/schemas/Phone'
+        name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+          description: Shown on the checkout and in messages until the person sets their own name on KetaPay
+          example: Ada Obi
+    CommissionInput:
+      type: object
+      required:
+        - rate_bps
+      description: |
+        Your cut, taken from the seller's side of each release. Never charged on money refunded
+        to the buyer. `rate_bps` is basis points (500 = 5%). `min_amount` and `max_amount` apply
+        to the whole escrow; each milestone's release carries its share. Must be within the
+        maximum rate in your KetaPay agreement.
+      properties:
+        rate_bps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+          example: 1000
+        min_amount:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          default: 0
+        max_amount:
+          oneOf:
+            - $ref: '#/components/schemas/Amount'
+            - type: 'null'
+          default: null
+    CreateCheckoutSessionRequest:
+      type: object
+      required:
+        - amount
+        - title
+        - description
+        - buyer
+        - seller
+      properties:
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          minimum: 1
+          description: The full agreed price in kobo, before KetaPay's fee. Must equal the sum of `milestones` when given.
+        currency:
+          type: string
+          enum:
+            - NGN
+          default: NGN
+        category:
+          $ref: '#/components/schemas/Category'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: What is being bought, in a few words
+          example: Company website
+        description:
+          type: string
+          minLength: 20
+          maxLength: 2000
+          description: |
+            What was agreed, in enough detail for someone else to judge a dispute: condition,
+            specification, scope of work, what is included. Shown to both sides.
+        images:
+          type: array
+          maxItems: 10
+          description: Photos of what is being bought. The first is the cover image.
+          items:
+            $ref: '#/components/schemas/Image'
+        attachments:
+          type: array
+          maxItems: 10
+          description: Documents, such as a brief, a contract, an invoice or property papers
+          items:
+            $ref: '#/components/schemas/Attachment'
+        url:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The listing, project or deal on your site
+        milestones:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: Stages released one at a time, in this order. Leave out for a single payment.
+          items:
+            $ref: '#/components/schemas/MilestoneInput'
+        buyer:
+          $ref: '#/components/schemas/PartyInput'
+        seller:
+          $ref: '#/components/schemas/PartyInput'
+        release:
+          $ref: '#/components/schemas/Release'
+        commission:
+          oneOf:
+            - $ref: '#/components/schemas/CommissionInput'
+            - type: 'null'
+          default: null
+        expires_at:
+          type: string
+          format: date-time
+          description: When the session stops accepting payment. Between 15 minutes and 7 days from now; defaults to 24 hours.
+        return_url:
+          type: string
+          format: uri
+          description: Where the buyer goes after paying. KetaPay appends `?checkout_session_id=<id>`.
+        cancel_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: Where the buyer goes if they leave without paying
+        external_reference:
+          $ref: '#/components/schemas/ExternalReference'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+    CheckoutSessionStatus:
+      type: string
+      enum:
+        - open
+        - complete
+        - expired
+        - cancelled
+      description: |
+        `open`: waiting for payment. `complete`: paid, `escrow_id` is set. `expired`: not paid by
+        `expires_at`. `cancelled`: you cancelled it.
+    Fees:
+      type: object
+      required:
+        - amount
+        - buyer_fee
+        - buyer_vat
+        - buyer_total
+        - seller_fee
+        - commission
+        - seller_payout
+      description: |
+        Totals for the whole escrow, in kobo. `buyer_total = amount + buyer_fee + buyer_vat` and
+        `seller_payout = amount - seller_fee - commission`. Until everything is released these
+        are what will apply; each milestone shows its own share.
+      properties:
+        amount:
+          $ref: '#/components/schemas/Amount'
+        buyer_fee:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: KetaPay's fee paid by the buyer (1.5%)
+          example: 2250000
+        buyer_vat:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: 7.5% VAT on `buyer_fee`
+          example: 168750
+        buyer_total:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: What the buyer is charged
+          example: 152418750
+        seller_fee:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: KetaPay's fee taken from the seller's payouts (1.5%)
+          example: 2250000
+        commission:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: Your commission
+          example: 15000000
+        seller_payout:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: What the seller receives once everything is released
+          example: 132750000
+    CheckoutSession:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - status
+        - url
+        - amount
+        - currency
+        - fees
+        - category
+        - title
+        - description
+        - images
+        - attachments
+        - milestones
+        - buyer
+        - seller
+        - release
+        - commission
+        - escrow_id
+        - return_url
+        - cancel_url
+        - external_reference
+        - metadata
+        - expires_at
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: checkout_session
+        livemode:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/CheckoutSessionStatus'
+        url:
+          type: string
+          format: uri
+          description: The hosted checkout. Open it with `@ketapay/checkout` or redirect the buyer to it.
+          example: https://app.ketapay.com/checkout/2c9a7f4e-1b3d-4e6a-8f2c-5d7b9e1a3c60
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          type: string
+          const: NGN
+        fees:
+          $ref: '#/components/schemas/Fees'
+        category:
+          $ref: '#/components/schemas/Category'
+        title:
+          type: string
+        description:
+          type: string
+        images:
+          type: array
+          description: KetaPay's copies, in order; the first is the cover
+          items:
+            $ref: '#/components/schemas/Image'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        url_on_platform:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The `url` you sent at creation
+        milestones:
+          type: array
+          description: The plan. One entry for a single payment.
+          items:
+            $ref: '#/components/schemas/MilestoneInput'
+        buyer:
+          $ref: '#/components/schemas/PartyInput'
+        seller:
+          $ref: '#/components/schemas/PartyInput'
+        release:
+          $ref: '#/components/schemas/Release'
+        commission:
+          oneOf:
+            - $ref: '#/components/schemas/CommissionInput'
+            - type: 'null'
+        escrow_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: Set once the buyer has paid
+        return_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+        cancel_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+        external_reference:
+          $ref: '#/components/schemas/ExternalReference'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        expires_at:
+          type: string
+          format: date-time
+        completed_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        cancelled_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    CreateCustomerSessionRequest:
+      type: object
+      description: Exactly one of `email` and `phone`; the code goes there.
+      oneOf:
+        - type: object
+          required:
+            - email
+          properties:
+            email:
+              $ref: '#/components/schemas/Email'
+        - type: object
+          required:
+            - phone
+          properties:
+            phone:
+              $ref: '#/components/schemas/Phone'
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        phone:
+          $ref: '#/components/schemas/Phone'
+    CustomerSession:
+      type: object
+      required:
+        - id
+        - object
+        - email
+        - phone
+        - status
+        - channel
+        - expires_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: customer_session
+        email:
+          oneOf:
+            - $ref: '#/components/schemas/Email'
+            - type: 'null'
+        phone:
+          oneOf:
+            - $ref: '#/components/schemas/Phone'
+            - type: 'null'
+        status:
+          type: string
+          enum:
+            - code_sent
+            - verified
+            - failed
+            - expired
+        channel:
+          type: string
+          enum:
+            - email
+            - whatsapp
+            - sms
+          description: Where the code was delivered
+        expires_at:
+          type: string
+          format: date-time
+          description: When the code stops working
+    CustomerToken:
+      type: object
+      required:
+        - object
+        - token
+        - expires_at
+        - email
+        - phone
+        - has_claimed_account
+      properties:
+        object:
+          type: string
+          const: customer_token
+        token:
+          type: string
+          description: Send as `KetaPay-Customer-Token`. Shown only here.
+          example: ctk_test_4f9a2c7e1b8d6a3f5e0c9b2d7a1e4f8c
+        expires_at:
+          type: string
+          format: date-time
+        email:
+          description: The customer's email on KetaPay, if known
+          oneOf:
+            - $ref: '#/components/schemas/Email'
+            - type: 'null'
+        phone:
+          description: The customer's phone on KetaPay, if known
+          oneOf:
+            - $ref: '#/components/schemas/Phone'
+            - type: 'null'
+        has_claimed_account:
+          type: boolean
+    BankTransferInstructions:
+      type: object
+      required:
+        - object
+        - checkout_session_id
+        - bank_name
+        - account_number
+        - account_name
+        - amount
+        - expires_at
+      properties:
+        object:
+          type: string
+          const: bank_transfer_instructions
+        checkout_session_id:
+          type: string
+          format: uuid
+        bank_name:
+          type: string
+          example: Zenith Bank
+        account_number:
+          type: string
+          pattern: ^\d{10}$
+          example: '9912345678'
+        account_name:
+          type: string
+          example: KetaPay Escrow / Ada Obi
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: Transfer exactly this (the buyer's total)
+          example: 152418750
+        expires_at:
+          type: string
+          format: date-time
+    EscrowStatus:
+      type: string
+      enum:
+        - active
+        - disputed
+        - completed
+        - refunded
+      description: |
+        `active`: money held, milestones in progress. `disputed`: the buyer reported a problem;
+        KetaPay is handling it. `completed`: ended with at least one milestone paid to the
+        seller. `refunded`: ended with everything returned to the buyer. An escrow only exists
+        once the buyer has paid.
+    MilestoneStatus:
+      type: string
+      enum:
+        - funded
+        - delivered
+        - released
+        - refunded
+        - disputed
+      description: |
+        `funded`: money held, waiting for the seller. `delivered`: the seller says it is done;
+        waiting for the buyer. `released`: paid to the seller. `refunded`: returned to the
+        buyer. `disputed`: frozen until KetaPay resolves the dispute.
+    Party:
+      type: object
+      required:
+        - email
+        - phone
+        - name
+        - has_claimed_account
+      properties:
+        email:
+          oneOf:
+            - $ref: '#/components/schemas/Email'
+            - type: 'null'
+        phone:
+          oneOf:
+            - $ref: '#/components/schemas/Phone'
+            - type: 'null'
+        name:
+          type:
+            - string
+            - 'null'
+        has_claimed_account:
+          type: boolean
+          description: Whether the person has signed in to KetaPay
+    Delivery:
+      type: object
+      required:
+        - note
+        - attachments
+        - delivered_at
+      properties:
+        note:
+          type:
+            - string
+            - 'null'
+          maxLength: 160
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        delivered_at:
+          type: string
+          format: date-time
+    Payout:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - escrow_id
+        - milestone_id
+        - amount
+        - status
+        - bank_name
+        - account_number_last4
+        - sent_at
+        - failure_reason
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: payout
+        livemode:
+          type: boolean
+        escrow_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type: string
+          format: uuid
+        amount:
+          $ref: '#/components/schemas/Amount'
+        status:
+          type: string
+          enum:
+            - awaiting_account
+            - processing
+            - sent
+            - failed
+          description: |
+            `awaiting_account`: in the seller's KetaPay balance until they confirm a payout
+            account. `processing`: transfer started. `sent`: reached the bank. `failed`: rejected
+            by the bank and back in the seller's balance.
+        bank_name:
+          type:
+            - string
+            - 'null'
+        account_number_last4:
+          type:
+            - string
+            - 'null'
+          example: '6789'
+        sent_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        failure_reason:
+          type:
+            - string
+            - 'null'
+          example: Account closed
+    Milestone:
+      type: object
+      required:
+        - id
+        - object
+        - position
+        - title
+        - description
+        - amount
+        - due_date
+        - status
+        - delivery
+        - auto_release_at
+        - seller_fee
+        - commission
+        - seller_payout
+        - payout
+        - refund
+        - released_at
+        - refunded_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: milestone
+        position:
+          type: integer
+          minimum: 1
+          description: Order in the plan, starting at 1
+        title:
+          type: string
+        description:
+          type:
+            - string
+            - 'null'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        due_date:
+          type:
+            - string
+            - 'null'
+          format: date
+        status:
+          $ref: '#/components/schemas/MilestoneStatus'
+        delivery:
+          description: What the seller sent when marking it delivered. Null before that.
+          oneOf:
+            - $ref: '#/components/schemas/Delivery'
+            - type: 'null'
+        auto_release_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When it releases if the buyer does nothing. Null if the escrow never auto-releases or it isn't delivered yet.
+        seller_fee:
+          $ref: '#/components/schemas/Amount'
+        commission:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: Your share from this milestone's release
+        seller_payout:
+          $ref: '#/components/schemas/Amount'
+        payout:
+          description: Where the seller's money for this milestone is. Null until released.
+          oneOf:
+            - $ref: '#/components/schemas/Payout'
+            - type: 'null'
+        refund:
+          description: Where the buyer's money for this milestone is. Null unless refunded.
+          oneOf:
+            - $ref: '#/components/schemas/Refund'
+            - type: 'null'
+        released_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        refunded_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    TimelineEntry:
+      type: object
+      required:
+        - type
+        - milestone_id
+        - occurred_at
+      properties:
+        type:
+          type: string
+          enum:
+            - funded
+            - milestone_delivered
+            - milestone_released
+            - milestone_refunded
+            - dispute_opened
+            - dispute_resolved
+            - flagged
+            - cancelled
+            - completed
+            - refunded
+            - chargeback_opened
+            - chargeback_closed
+          description: New entry types may be added.
+        milestone_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        occurred_at:
+          type: string
+          format: date-time
+    Escrow:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - status
+        - amount
+        - currency
+        - fees
+        - category
+        - title
+        - description
+        - images
+        - attachments
+        - milestones
+        - buyer
+        - seller
+        - release
+        - checkout_session_id
+        - open_dispute_id
+        - open_chargeback_id
+        - flagged
+        - timeline
+        - external_reference
+        - metadata
+        - created_at
+        - funded_at
+        - ended_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: escrow
+        livemode:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/EscrowStatus'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          type: string
+          const: NGN
+        fees:
+          $ref: '#/components/schemas/Fees'
+        category:
+          $ref: '#/components/schemas/Category'
+        title:
+          type: string
+        description:
+          type: string
+        images:
+          type: array
+          description: KetaPay's copies of the images sent at checkout; the first is the cover
+          items:
+            $ref: '#/components/schemas/Image'
+        attachments:
+          type: array
+          description: KetaPay's copies of the documents sent at checkout
+          items:
+            $ref: '#/components/schemas/Attachment'
+        milestones:
+          type: array
+          description: In order. One entry for a single payment.
+          items:
+            $ref: '#/components/schemas/Milestone'
+        buyer:
+          $ref: '#/components/schemas/Party'
+        seller:
+          $ref: '#/components/schemas/Party'
+        release:
+          $ref: '#/components/schemas/Release'
+        checkout_session_id:
+          type: string
+          format: uuid
+        open_dispute_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: The dispute currently open, if any. `GET /escrows/{id}/disputes` lists them all.
+        open_chargeback_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: A card chargeback currently being contested, if any
+        flagged:
+          type: boolean
+          description: Whether you have flagged this escrow
+        timeline:
+          type: array
+          description: What happened, oldest first
+          items:
+            $ref: '#/components/schemas/TimelineEntry'
+        external_reference:
+          $ref: '#/components/schemas/ExternalReference'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        created_at:
+          type: string
+          format: date-time
+        funded_at:
+          type: string
+          format: date-time
+        ended_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When it became `completed` or `refunded`
+    DeliverMilestoneRequest:
+      type: object
+      properties:
+        note:
+          type:
+            - string
+            - 'null'
+          maxLength: 160
+          description: What was delivered, for the buyer
+        attachments:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Attachment'
+    ReleaseMilestoneRequest:
+      type: object
+      properties:
+        release_code:
+          type: string
+          pattern: ^\d{6}$
+          description: Required for `release_code` escrows
+    ReleaseCode:
+      type: object
+      required:
+        - object
+        - escrow_id
+        - milestone_id
+        - code
+      properties:
+        object:
+          type: string
+          const: release_code
+        escrow_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: ^\d{6}$
+          example: '731045'
+    CancelEscrowRequest:
+      type: object
+      properties:
+        reason:
+          type:
+            - string
+            - 'null'
+          maxLength: 500
+    CreateFlagRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          enum:
+            - fraudulent_listing
+            - banned_seller
+            - banned_buyer
+            - suspicious_activity
+            - other
+        note:
+          type:
+            - string
+            - 'null'
+          maxLength: 1000
+          description: What you know. Only KetaPay sees it.
+    Flag:
+      type: object
+      required:
+        - id
+        - object
+        - escrow_id
+        - reason
+        - note
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: flag
+        escrow_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum:
+            - fraudulent_listing
+            - banned_seller
+            - banned_buyer
+            - suspicious_activity
+            - other
+        note:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+          enum:
+            - pending_review
+            - reviewed
+        created_at:
+          type: string
+          format: date-time
+    DisputeReason:
+      type: string
+      enum:
+        - not_received
+        - not_as_agreed
+        - damaged
+        - incomplete
+        - buyer_unresponsive
+        - other
+      description: |
+        Buyer reasons: `not_received` (goods or work never arrived), `not_as_agreed` (differs
+        from what was agreed), `damaged`, `incomplete` (only part was delivered). Seller reason:
+        `buyer_unresponsive` (delivered, but the buyer won't release or respond). Either side:
+        `other`.
+    CreateDisputeRequest:
+      type: object
+      required:
+        - reason
+        - description
+      properties:
+        milestone_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: The milestone in question. Leave out for the whole escrow.
+        reason:
+          $ref: '#/components/schemas/DisputeReason'
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        files:
+          type: array
+          maxItems: 10
+          description: First evidence, as ids from `POST /files` with purpose `dispute_evidence`
+          items:
+            type: string
+            format: uuid
+    Dispute:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - escrow_id
+        - milestone_id
+        - opened_by
+        - status
+        - reason
+        - outcome
+        - resolved_by
+        - url
+        - awaiting_evidence_from
+        - evidence_due_at
+        - evidence_count
+        - opened_at
+        - resolved_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: dispute
+        livemode:
+          type: boolean
+        escrow_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: Null when the dispute covers the whole escrow
+        opened_by:
+          type: string
+          enum:
+            - buyer
+            - seller
+        status:
+          type: string
+          enum:
+            - open
+            - under_review
+            - resolved
+          description: |
+            `open`: the buyer and seller are trying to agree. `under_review`: a KetaPay mediator
+            is deciding. `resolved`: ended, see `outcome`.
+        reason:
+          $ref: '#/components/schemas/DisputeReason'
+        outcome:
+          type:
+            - string
+            - 'null'
+          enum:
+            - released
+            - refunded
+            - partially_refunded
+            - withdrawn
+            - null
+          description: |
+            Null until resolved. `withdrawn`: the buyer withdrew the dispute and the deal
+            continues. `partially_refunded`: split between buyer and seller.
+        resolved_by:
+          type:
+            - string
+            - 'null'
+          enum:
+            - buyer
+            - seller
+            - ketapay
+            - null
+          description: Who ended it. A party can only end it against themselves (conceding) or by withdrawing their own dispute.
+        refunded_amount:
+          oneOf:
+            - $ref: '#/components/schemas/Amount'
+            - type: 'null'
+          description: For `refunded` and `partially_refunded`, the amount returned to the buyer
+        url:
+          type: string
+          format: uri
+          description: The dispute room, where the buyer and seller add evidence and talk to KetaPay
+          example: https://app.ketapay.com/disputes/8e2f4a6c-1d3b-4c7e-9a5f-0b2d4f6a8c13
+        awaiting_evidence_from:
+          type:
+            - string
+            - 'null'
+          enum:
+            - buyer
+            - seller
+            - both
+            - null
+          description: Who KetaPay is waiting on for evidence, if anyone
+        evidence_due_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Deadline for the evidence KetaPay asked for
+        evidence_count:
+          type: integer
+          minimum: 0
+          description: How many evidence submissions both sides have made
+        opened_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    SubmitEvidenceRequest:
+      type: object
+      required:
+        - statement
+      properties:
+        statement:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: What happened, in the customer's words
+        files:
+          type: array
+          maxItems: 10
+          description: Ids from `POST /files` with purpose `dispute_evidence`
+          items:
+            type: string
+            format: uuid
+    Evidence:
+      type: object
+      required:
+        - id
+        - object
+        - dispute_id
+        - submitted_by
+        - statement
+        - files
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: evidence
+        dispute_id:
+          type: string
+          format: uuid
+        submitted_by:
+          type: string
+          enum:
+            - buyer
+            - seller
+        statement:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        created_at:
+          type: string
+          format: date-time
+    FilePurpose:
+      type: string
+      enum:
+        - agreement
+        - delivery
+        - dispute_evidence
+    File:
+      type: object
+      required:
+        - id
+        - object
+        - purpose
+        - name
+        - mime_type
+        - size_bytes
+        - url
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: file
+        purpose:
+          $ref: '#/components/schemas/FilePurpose'
+        name:
+          type: string
+          example: Delivered designs.pdf
+        mime_type:
+          type: string
+          example: application/pdf
+        size_bytes:
+          type: integer
+          maximum: 26214400
+        url:
+          type: string
+          format: uri
+          description: Short-lived link to download the file, valid for 1 hour
+        created_at:
+          type: string
+          format: date-time
+    Refund:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - escrow_id
+        - milestone_id
+        - amount
+        - destination
+        - status
+        - last4
+        - sent_at
+        - failure_reason
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: refund
+        livemode:
+          type: boolean
+        escrow_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type: string
+          format: uuid
+        amount:
+          $ref: '#/components/schemas/Amount'
+        destination:
+          type: string
+          enum:
+            - card
+            - bank_account
+            - ketapay_balance
+          description: Where the money went. `ketapay_balance` after a failed card or bank refund.
+        status:
+          type: string
+          enum:
+            - processing
+            - sent
+            - failed
+          description: |
+            `processing`: started. `sent`: accepted by the card network or bank. `failed`: could
+            not go back the way it came; a new refund with `destination` `ketapay_balance`
+            follows straight away.
+        last4:
+          type:
+            - string
+            - 'null'
+          description: Last 4 digits of the card or bank account
+          example: '4081'
+        sent_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        failure_reason:
+          type:
+            - string
+            - 'null'
+          example: Card expired
+    Chargeback:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - escrow_id
+        - milestone_ids
+        - amount
+        - reason
+        - status
+        - respond_by
+        - recovered_from_seller
+        - commission_reversed
+        - opened_at
+        - closed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: chargeback
+        livemode:
+          type: boolean
+        escrow_id:
+          type: string
+          format: uuid
+        milestone_ids:
+          type: array
+          description: The milestones the reversed card payment covered
+          items:
+            type: string
+            format: uuid
+        amount:
+          $ref: '#/components/schemas/Amount'
+        reason:
+          type: string
+          enum:
+            - fraudulent
+            - not_received
+            - not_as_described
+            - duplicate
+            - other
+          description: The reason the card bank gave
+        status:
+          type: string
+          enum:
+            - needs_response
+            - under_review
+            - won
+            - lost
+          description: |
+            `needs_response`: KetaPay is gathering evidence (the seller can add some until
+            `respond_by`). `under_review`: with the card bank. `won`: reversed in KetaPay's
+            favour, nothing changes. `lost`: the bank took the money back.
+        respond_by:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        recovered_from_seller:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: For `lost`, how much has been recovered from the seller's balance and payouts so far
+        commission_reversed:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: For `lost` after release, your commission taken back from your commission balance
+        opened_at:
+          type: string
+          format: date-time
+        closed_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    Bank:
+      type: object
+      required:
+        - code
+        - name
+        - logo_url
+      properties:
+        code:
+          type: string
+          example: '057'
+        name:
+          type: string
+          example: Zenith Bank
+        logo_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+    CreatePayoutAccountRequest:
+      type: object
+      required:
+        - bank_code
+        - account_number
+      properties:
+        bank_code:
+          type: string
+          description: From `GET /banks`
+        account_number:
+          type: string
+          pattern: ^\d{10}$
+          description: 10-digit NUBAN
+    PayoutAccount:
+      type: object
+      required:
+        - id
+        - object
+        - status
+        - bank_code
+        - bank_name
+        - account_number_last4
+        - account_name
+        - created_at
+        - confirmed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: payout_account
+        status:
+          type: string
+          enum:
+            - pending_confirmation
+            - active
+            - inactive
+            - cancelled
+          description: |
+            `pending_confirmation`: waiting for the seller's code. `active`: receives payouts
+            (one per seller). `inactive`: replaced by a newer confirmed account. `cancelled`: not
+            confirmed in time, or too many wrong codes.
+        bank_code:
+          type: string
+        bank_name:
+          type: string
+          example: Zenith Bank
+        account_number_last4:
+          type: string
+          example: '6789'
+        account_name:
+          type: string
+          description: The name the bank holds for this account. Shown to the seller before they confirm; it does not have to match their name.
+          example: TUNDE BELLO
+        created_at:
+          type: string
+          format: date-time
+        confirmed_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    EventType:
+      type: string
+      enum:
+        - checkout_session.expired
+        - escrow.funded
+        - milestone.delivered
+        - milestone.released
+        - escrow.completed
+        - escrow.refunded
+        - dispute.opened
+        - dispute.evidence_requested
+        - dispute.evidence_submitted
+        - dispute.resolved
+        - payout.sent
+        - refund.sent
+        - refund.failed
+        - chargeback.opened
+        - chargeback.closed
+        - payout.failed
+      description: New event types may be added. Ignore types you don't handle.
+    CreateWebhookEndpointRequest:
+      type: object
+      required:
+        - url
+        - enabled_events
+      properties:
+        url:
+          type: string
+          format: uri
+          pattern: ^https://
+        enabled_events:
+          type: array
+          minItems: 1
+          description: Event types to send, or `["*"]` for all, including types added later
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/EventType'
+              - type: string
+                const: '*'
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 200
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+    UpdateWebhookEndpointRequest:
+      type: object
+      minProperties: 1
+      properties:
+        url:
+          type: string
+          format: uri
+          pattern: ^https://
+        enabled_events:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 200
+        status:
+          type: string
+          enum:
+            - enabled
+            - disabled
+          description: '`enabled` re-enables a `failing` endpoint; `disabled` pauses deliveries.'
+    WebhookTestResult:
+      type: object
+      required:
+        - object
+        - event_id
+        - delivered
+        - status_code
+        - response_ms
+        - error
+      properties:
+        object:
+          type: string
+          const: webhook_test_result
+        event_id:
+          type: string
+          example: evt_test_8f2a1c
+        delivered:
+          type: boolean
+          description: True when your endpoint answered 2xx within 10 seconds
+        status_code:
+          type:
+            - integer
+            - 'null'
+          example: 200
+        response_ms:
+          type:
+            - integer
+            - 'null'
+          example: 184
+        error:
+          type:
+            - string
+            - 'null'
+          description: Why it failed, when no status code came back (timeout, TLS, DNS)
+          example: null
+    SimulateRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - deliver
+            - release
+            - auto_release
+            - cancel
+            - open_dispute
+            - request_evidence
+            - resolve_dispute
+            - open_chargeback
+            - close_chargeback
+            - fail_payout
+            - fail_refund
+        milestone_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        actor:
+          type: string
+          enum:
+            - buyer
+            - seller
+        reason:
+          $ref: '#/components/schemas/DisputeReason'
+        from:
+          type: string
+          enum:
+            - buyer
+            - seller
+            - both
+        outcome:
+          type: string
+          enum:
+            - released
+            - refunded
+            - partially_refunded
+        refunded_amount:
+          $ref: '#/components/schemas/Amount'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        chargeback_status:
+          type: string
+          enum:
+            - won
+            - lost
+    WebhookEndpoint:
+      type: object
+      required:
+        - id
+        - object
+        - livemode
+        - url
+        - enabled_events
+        - description
+        - status
+        - metadata
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: webhook_endpoint
+        livemode:
+          type: boolean
+        url:
+          type: string
+          format: uri
+        enabled_events:
+          type: array
+          items:
+            type: string
+        description:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+          enum:
+            - enabled
+            - failing
+            - disabled
+          description: '`failing`: deliveries have failed for 3 days; fix the endpoint and re-enable it in the dashboard.'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        created_at:
+          type: string
+          format: date-time
+    Event:
+      type: object
+      required:
+        - id
+        - object
+        - type
+        - api_version
+        - livemode
+        - created_at
+        - data
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Deduplicate on this
+        object:
+          type: string
+          const: event
+        type:
+          $ref: '#/components/schemas/EventType'
+        api_version:
+          type: string
+          const: v1
+        livemode:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        data:
+          type: object
+          required:
+            - object
+          properties:
+            object:
+              description: The object as it was when the event happened
+              oneOf:
+                - $ref: '#/components/schemas/CheckoutSession'
+                - $ref: '#/components/schemas/Escrow'
+                - $ref: '#/components/schemas/Dispute'
+                - $ref: '#/components/schemas/Payout'
+                - $ref: '#/components/schemas/Refund'
+                - $ref: '#/components/schemas/Chargeback'
+              discriminator:
+                propertyName: object
+                mapping:
+                  checkout_session: '#/components/schemas/CheckoutSession'
+                  escrow: '#/components/schemas/Escrow'
+                  dispute: '#/components/schemas/Dispute'
+                  payout: '#/components/schemas/Payout'
+                  refund: '#/components/schemas/Refund'
+                  chargeback: '#/components/schemas/Chargeback'
+            milestone_id:
+              type:
+                - string
+                - 'null'
+              format: uuid
+              description: For `milestone.*` events, the milestone that changed
+  examples:
+    OpenCheckoutSession:
+      summary: Open, waiting for payment
+      value:
+        id: 2c9a7f4e-1b3d-4e6a-8f2c-5d7b9e1a3c60
+        object: checkout_session
+        livemode: false
+        status: open
+        url: https://app.ketapay.com/checkout/2c9a7f4e-1b3d-4e6a-8f2c-5d7b9e1a3c60
+        amount: 150000000
+        currency: NGN
+        fees:
+          amount: 150000000
+          buyer_fee: 2250000
+          buyer_vat: 168750
+          buyer_total: 152418750
+          seller_fee: 2250000
+          commission: 15000000
+          seller_payout: 132750000
+        category: services
+        title: Company website
+        description: Five-page marketing site with blog, built on Next.js. Brief attached.
+        images: []
+        attachments:
+          - name: Project brief.pdf
+            url: https://files.ketapay.com/attachments/2c9a7f4e/brief.pdf
+        url_on_platform: null
+        milestones:
+          - title: Design
+            description: Homepage and inner page designs, two revision rounds
+            amount: 40000000
+            due_date: '2026-10-24'
+          - title: Build
+            description: null
+            amount: 80000000
+            due_date: '2026-11-14'
+          - title: Launch
+            description: null
+            amount: 30000000
+            due_date: '2026-11-21'
+        buyer:
+          phone: '+2348012345678'
+          name: Ada Obi
+          email: ada@example.com
+        seller:
+          email: tunde.bello@example.com
+          phone: '+2348098765432'
+          name: Tunde Bello
+        release:
+          method: buyer_confirms
+          auto_release_hours: 168
+        commission:
+          rate_bps: 1000
+          min_amount: 0
+          max_amount: null
+        escrow_id: null
+        return_url: https://example.com/projects/4471
+        cancel_url: null
+        external_reference: proj_4471
+        metadata: {}
+        expires_at: '2026-10-11T09:30:00Z'
+        completed_at: null
+        cancelled_at: null
+        created_at: '2026-10-10T09:30:00Z'
+    ActiveEscrow:
+      summary: Active, first milestone delivered
+      value:
+        id: 3b1f6c2e-8d4a-4e7b-9c1d-2a5f8e6b7c90
+        object: escrow
+        livemode: false
+        status: active
+        amount: 150000000
+        currency: NGN
+        fees:
+          amount: 150000000
+          buyer_fee: 2250000
+          buyer_vat: 168750
+          buyer_total: 152418750
+          seller_fee: 2250000
+          commission: 15000000
+          seller_payout: 132750000
+        category: services
+        title: Company website
+        description: Five-page marketing site with blog, built on Next.js. Brief attached.
+        images: []
+        attachments:
+          - name: Project brief.pdf
+            url: https://files.ketapay.com/attachments/2c9a7f4e/brief.pdf
+        milestones:
+          - id: 7c2e9a41-3b5d-4f6e-8a1c-9d0b2e4f6a83
+            object: milestone
+            position: 1
+            title: Design
+            description: Homepage and inner page designs, two revision rounds
+            amount: 40000000
+            due_date: '2026-10-24'
+            status: delivered
+            delivery:
+              note: Designs ready for review. Figma link and exports attached.
+              attachments:
+                - name: Homepage.png
+                  url: https://files.ketapay.com/deliveries/7c2e9a41/homepage.png
+              delivered_at: '2026-10-22T16:05:00Z'
+            auto_release_at: '2026-10-29T16:05:00Z'
+            seller_fee: 600000
+            commission: 4000000
+            seller_payout: 35400000
+            payout: null
+            refund: null
+            released_at: null
+            refunded_at: null
+          - id: 9a4d1f3e-6b2c-4e8a-b5d7-1c3e5f7a9b02
+            object: milestone
+            position: 2
+            title: Build
+            description: null
+            amount: 80000000
+            due_date: '2026-11-14'
+            status: funded
+            delivery: null
+            auto_release_at: null
+            seller_fee: 1200000
+            commission: 8000000
+            seller_payout: 70800000
+            payout: null
+            refund: null
+            released_at: null
+            refunded_at: null
+          - id: 2e6b8d0f-4a1c-4d3e-9f5b-7a9c1e3d5f24
+            object: milestone
+            position: 3
+            title: Launch
+            description: null
+            amount: 30000000
+            due_date: '2026-11-21'
+            status: funded
+            delivery: null
+            auto_release_at: null
+            seller_fee: 450000
+            commission: 3000000
+            seller_payout: 26550000
+            payout: null
+            refund: null
+            released_at: null
+            refunded_at: null
+        buyer:
+          phone: '+2348012345678'
+          name: Ada Obi
+          email: ada@example.com
+          has_claimed_account: true
+        seller:
+          email: tunde.bello@example.com
+          phone: '+2348098765432'
+          name: Tunde Bello
+          has_claimed_account: true
+        release:
+          method: buyer_confirms
+          auto_release_hours: 168
+        checkout_session_id: 2c9a7f4e-1b3d-4e6a-8f2c-5d7b9e1a3c60
+        open_dispute_id: null
+        open_chargeback_id: null
+        flagged: false
+        timeline:
+          - type: funded
+            milestone_id: null
+            occurred_at: '2026-10-10T09:41:12Z'
+          - type: milestone_delivered
+            milestone_id: 7c2e9a41-3b5d-4f6e-8a1c-9d0b2e4f6a83
+            occurred_at: '2026-10-22T16:05:00Z'
+        external_reference: proj_4471
+        metadata: {}
+        created_at: '2026-10-10T09:41:12Z'
+        funded_at: '2026-10-10T09:41:12Z'
+        ended_at: null

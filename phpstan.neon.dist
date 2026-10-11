@@ -1,0 +1,12 @@
+# The SDK and its tests at the strictest level. Dev scripts have their own, looser config (phpstan-scripts.neon).
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+        - init.php
+    excludePaths:
+        - tests/Support/server.php (?)
+    tmpDir: .phpstan-cache
+    # Public methods validate what callers pass at runtime too, because most PHP callers run no static analysis.
+    treatPhpDocTypesAsCertain: false
