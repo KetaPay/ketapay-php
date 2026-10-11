@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-// src/Models and src/Enums are generated: never formatted by hand, checked by the drift check instead.
+// src/Models, src/Enums and src/Types are generated: never formatted by hand, checked by the drift check instead.
 $finder = PhpCsFixer\Finder::create()
     ->in([__DIR__ . '/src', __DIR__ . '/tests', __DIR__ . '/scripts'])
     ->append([__DIR__ . '/init.php', __FILE__])
-    ->exclude(['Models', 'Enums']);
+    ->exclude(['Models', 'Enums', 'Types']);
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)

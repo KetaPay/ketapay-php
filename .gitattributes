@@ -22,3 +22,4 @@
 spec/v1.yaml linguist-generated=true
 src/Models/** linguist-generated=true
 src/Enums/** linguist-generated=true
+src/Types/** linguist-generated=true

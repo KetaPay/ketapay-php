@@ -35,7 +35,7 @@ final class RequestBodiesTest extends TestCase
     public function testJson(): void
     {
         $t = new MockTransport(['body' => []]);
-        self::client($t)->checkoutSessions->create(['title' => 'Café ₦', 'images' => [['url' => 'https://x.test/a.jpg']], 'amount' => 45_000_000]);
+        self::client($t)->checkoutSessions->create(['title' => 'Café ₦', 'images' => [['url' => 'https://x.test/a.jpg']], 'amount' => 45_000_000]); // @phpstan-ignore argument.type (partial body on purpose)
         self::assertSame('{"title":"Café ₦","images":[{"url":"https://x.test/a.jpg"}],"amount":45000000}', $t->last()->body);
     }
 }

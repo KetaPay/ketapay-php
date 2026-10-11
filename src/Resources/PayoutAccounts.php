@@ -11,6 +11,7 @@ use KetaPay\Models\PayoutAccount;
 /**
  * A customer's bank accounts. Every call needs that customer's token.
  *
+ * @phpstan-import-type CreatePayoutAccountRequest from \KetaPay\Types\Params
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
 final class PayoutAccounts extends AbstractResource
@@ -18,7 +19,7 @@ final class PayoutAccounts extends AbstractResource
     /**
      * Starts adding a bank account; KetaPay sends the customer a code naming it.
      *
-     * @param array<string, mixed>   $params  bank_code, account_number
+     * @param CreatePayoutAccountRequest   $params  bank_code, account_number
      * @param CustomerRequestOptions $options
      */
     public function create(array $params, array $options): PayoutAccount

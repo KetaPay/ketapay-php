@@ -9,6 +9,8 @@ use KetaPay\Models\Dispute;
 use KetaPay\Models\Evidence;
 
 /**
+ * @phpstan-import-type CreateDisputeRequest from \KetaPay\Types\Params
+ * @phpstan-import-type SubmitEvidenceRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
@@ -17,7 +19,7 @@ final class Disputes extends AbstractResource
     /**
      * Opens a dispute for the buyer or the seller whose customer token you send.
      *
-     * @param array<string, mixed>   $params  reason, description, milestone_id, files
+     * @param CreateDisputeRequest   $params  reason, description, milestone_id, files
      * @param CustomerRequestOptions $options
      */
     public function create(string $escrowId, array $params, array $options): Dispute
@@ -64,7 +66,7 @@ final class Disputes extends AbstractResource
     }
 
     /**
-     * @param array<string, mixed>   $params  statement, files
+     * @param SubmitEvidenceRequest   $params  statement, files
      * @param CustomerRequestOptions $options
      */
     public function submitEvidence(string $id, array $params, array $options): Evidence
