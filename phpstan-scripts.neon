@@ -1,6 +1,9 @@
 # Dev scripts read untyped YAML and JSON, so they are checked for real mistakes (undefined names, wrong
 # calls) rather than for proving every array shape. The generator's output is checked by the drift check.
 parameters:
+    # Analyse as the oldest PHP the SDK supports: flags newer syntax even on a newer local PHP. It does NOT catch
+    # newer functions or constants (they exist in the PHP running PHPStan): CI's run on that PHP does.
+    phpVersion: 80100
     level: 5
     paths:
         - scripts
