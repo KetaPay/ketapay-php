@@ -41,6 +41,8 @@ final class HttpClient
         private readonly Transport $transport,
         private readonly array $defaultHeaders,
         private readonly Logger $log,
+        /** Appended to the User-Agent, for libraries built on this one: "ketapay-laravel/0.1.0". */
+        private readonly ?string $appInfo = null,
     ) {
         $this->livemode = str_starts_with($apiKey, 'sk_live_');
     }
@@ -65,7 +67,7 @@ final class HttpClient
         }
         $headers['Authorization'] = 'Bearer ' . $this->apiKey;
         $headers['Accept'] = 'application/json';
-        $headers['User-Agent'] = 'ketapay-php/' . KetaPay::VERSION . ' php/' . PHP_VERSION;
+        $headers['User-Agent'] = 'ketapay-php/' . KetaPay::VERSION . ' php/' . PHP_VERSION . ($this->appInfo !== null ? ' ' . $this->appInfo : '');
         if ($method === 'POST') {
             $headers['Idempotency-Key'] = $options['idempotencyKey'] ?? self::uuid();
         }

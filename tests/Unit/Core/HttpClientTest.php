@@ -43,6 +43,17 @@ final class HttpClientTest extends TestCase
         self::assertSame('ketapay-php/' . KetaPay::VERSION . ' php/' . PHP_VERSION, $r->headers['User-Agent']);
     }
 
+    #[TestDox('[REQ-003] appends appInfo to the User-Agent, and refuses one that could break the header')]
+    public function testAppInfo(): void
+    {
+        $t = new MockTransport(['body' => []]);
+        self::client($t, ['appInfo' => ['name' => 'ketapay-laravel', 'version' => '0.1.0-beta.1']])->escrows->retrieve('e1');
+        self::assertSame('ketapay-php/' . KetaPay::VERSION . ' php/' . PHP_VERSION . ' ketapay-laravel/0.1.0-beta.1', $t->last()->headers['User-Agent']);
+        foreach ([['name' => "evil\r\nX-Injected: 1", 'version' => '1'], ['name' => 'ok', 'version' => '1 2'], ['name' => 'ok'], 'ketapay-laravel/1'] as $bad) {
+            self::catching(\InvalidArgumentException::class, fn() => self::client($t, ['appInfo' => $bad]));
+        }
+    }
+
     #[TestDox('[REQ-001] [REQ-002] uses the idempotency key you pass, and none on GET')]
     public function testIdempotencyKey(): void
     {

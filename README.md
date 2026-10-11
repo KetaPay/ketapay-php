@@ -188,6 +188,8 @@ Then type-hint `KetaPay` in controllers and jobs. Exclude your webhook route fro
 new KetaPay(['apiKey' => $key, 'transport' => new KetaPay\Http\Psr18Transport($client, $requestFactory, $streamFactory)]);
 ```
 
+Building a library on top of this one? Identify it with `'appInfo' => ['name' => 'my-plugin', 'version' => '1.2.0']`: it's added to the User-Agent, so KetaPay support can see which integration made a call.
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
