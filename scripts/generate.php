@@ -227,6 +227,124 @@ foreach ($schemas as $name => $schema) {
         . "final class $name\n{\n" . implode("\n", $consts) . "\n}\n";
 }
 
+// Request parameter shapes (src/Types/Params.php): PHPStan array shapes for every request body and
+// list filter, so `$ketapay->checkoutSessions->create([...])` is checked and autocompleted. The SDK
+// still sends arrays as given; KetaPay validates them.
+$aliases = [];
+$requestNames = array_values(array_filter(array_keys($schemas), static fn(string $n): bool => (bool) preg_match('/(Request|Input)$/', $n)));
+$key = static fn(string $k): string => preg_match('/^[a-z_][a-z0-9_]*$/i', $k) ? $k : "'$k'";
+$shape = static fn(array $schema): string => ''; // replaced below; declared first so $paramType can call it
+/** The PHPDoc type of a schema as a request parameter. */
+$paramType = static function (array $schema) use (&$paramType, &$shape, $schemas, $requestNames): string {
+    if (isset($schema['$ref'])) {
+        $name = basename($schema['$ref']);
+        if (in_array($name, $requestNames, true)) {
+            return $name;
+        }
+
+        return $paramType($schemas[$name]);
+    }
+    if (isset($schema['enum'])) {
+        return implode('|', array_map(static fn(mixed $v): string => is_string($v) ? "'$v'" : var_export($v, true), $schema['enum']));
+    }
+    if (isset($schema['const']) && is_string($schema['const'])) {
+        return "'{$schema['const']}'";
+    }
+    foreach (['oneOf', 'anyOf'] as $k) {
+        if (isset($schema[$k]) && !isset($schema['properties'])) {
+            return implode('|', array_unique(array_map($paramType, $schema[$k])));
+        }
+    }
+    if (isset($schema['allOf']) && count($schema['allOf']) === 1) {
+        return $paramType($schema['allOf'][0]);
+    }
+    if (isset($schema['properties'])) {
+        return $shape($schema);
+    }
+    $types = (array) ($schema['type'] ?? 'mixed');
+    $out = [];
+    foreach ($types as $type) {
+        $out[] = match ($type) {
+            'string' => 'string',
+            'integer' => 'int',
+            'number' => 'int|float',
+            'boolean' => 'bool',
+            'null' => 'null',
+            'array' => 'list<' . (isset($schema['items']) ? $paramType($schema['items']) : 'mixed') . '>',
+            'object' => isset($schema['additionalProperties']) && is_array($schema['additionalProperties'])
+                ? 'array<string, ' . $paramType($schema['additionalProperties']) . '>'
+                : 'array<string, mixed>',
+            default => 'mixed',
+        };
+    }
+
+    return implode('|', array_unique($out));
+};
+/**
+ * An object as an array shape. "One of these fields" rules (anyOf/oneOf branches that each require a
+ * field) become a union of shapes: with oneOf, a branch leaves out the fields the others require.
+ */
+$shape = static function (array $schema) use (&$paramType, $key): string {
+    $props = array_filter($schema['properties'] ?? [], static fn(mixed $p): bool => is_array($p) && empty($p['readOnly']));
+    $required = $schema['required'] ?? [];
+    $branches = $schema['anyOf'] ?? $schema['oneOf'] ?? null;
+    $build = static function (array $required, array $exclude = []) use ($props, $paramType, $key): string {
+        $fields = [];
+        foreach ($props as $name => $prop) {
+            if (in_array($name, $exclude, true)) {
+                continue;
+            }
+            $fields[] = $key((string) $name) . (in_array($name, $required, true) ? '' : '?') . ': ' . $paramType($prop);
+        }
+
+        return 'array{' . implode(', ', $fields) . '}';
+    };
+    if ($branches === null) {
+        return $build($required);
+    }
+    $branchRequired = array_map(static fn(array $b): array => $b['required'] ?? [], $branches);
+    $out = [];
+    foreach ($branchRequired as $i => $own) {
+        $exclude = [];
+        if (isset($schema['oneOf'])) {
+            foreach ($branchRequired as $j => $other) {
+                if ($j !== $i) {
+                    $exclude = array_merge($exclude, array_diff($other, $own));
+                }
+            }
+        }
+        $out[] = $build(array_merge($required, $own), $exclude);
+    }
+
+    return implode('|', array_unique($out));
+};
+foreach ($requestNames as $name) {
+    $aliases[$name] = $shape($schemas[$name]);
+}
+foreach ($spec['paths'] as $ops) {
+    foreach ($ops as $op) {
+        if (!is_array($op) || !isset($op['operationId']) || !str_starts_with($op['operationId'], 'list')) {
+            continue;
+        }
+        $fields = [];
+        foreach ($op['parameters'] ?? [] as $param) {
+            if (isset($param['$ref'])) {
+                $param = $spec['components']['parameters'][basename($param['$ref'])];
+            }
+            if (($param['in'] ?? null) === 'query') {
+                $fields[] = $key($param['name']) . '?: ' . $paramType($param['schema'] ?? []);
+            }
+        }
+        if ($fields !== []) {
+            $aliases[ucfirst($op['operationId']) . 'Params'] = 'array{' . implode(', ', $fields) . '}';
+        }
+    }
+}
+ksort($aliases);
+$lines = array_map(static fn(string $n, string $t): string => " * @phpstan-type $n $t", array_keys($aliases), $aliases);
+$out['Types'] = ['Params.php' => $header . "namespace KetaPay\\Types;\n\n/**\n * Request parameter shapes, for static analysis and autocompletion (PHPStan, Psalm, PhpStorm). The SDK\n * sends arrays as given and KetaPay validates them, so these only help you catch mistakes earlier.\n *\n"
+    . implode("\n", $lines) . "\n */\nfinal class Params\n{\n}\n"];
+
 foreach ($out as $dir => $files) {
     $path = "$root/src/$dir";
     if (!is_dir($path)) {

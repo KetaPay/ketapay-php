@@ -20,7 +20,8 @@ src/
 │   └── Logger.php        level filter over PSR-3, a callable or error_log
 ├── Resources/            one class per API resource, nested like the URL (Escrows has ->milestones)
 ├── Models/               GENERATED from spec/v1.yaml: one class per object the API returns
-└── Enums/                GENERATED: constants for each string enum
+├── Enums/                GENERATED: constants for each string enum
+└── Types/Params.php      GENERATED: PHPStan array shapes for every request body and list filter
 init.php                  autoloader for projects without Composer (WordPress plugins)
 tests/
 ├── Unit/                 Core/, Resources/, Webhooks/, the catalogue check
@@ -37,7 +38,7 @@ There are no runtime dependencies. PHP 8.1 is the floor: no PHP 8.2+ syntax or f
 
 1. **Change the spec first**, in the documentation repo, in the same piece of work as the API change.
 2. **Sync it here:** `npm run public:check` in the documentation repo, then `composer sync-spec` here (reads `../documentation/openapi/public`, or pass a path). Never edit `spec/` by hand: its header records a hash and CI rejects edits.
-3. **Regenerate the models:** `composer generate`. Never edit `src/Models/` or `src/Enums/` by hand. An operation that returns a new inline object fails generation until you name its class in `$inlineResponses` in `scripts/generate.php`.
+3. **Regenerate the models:** `composer generate`. Never edit `src/Models/`, `src/Enums/` or `src/Types/` by hand. Resource methods import their parameter shape from `KetaPay\Types\Params` (`@phpstan-import-type`): a new request body needs that line on its method. An operation that returns a new inline object fails generation until you name its class in `$inlineResponses` in `scripts/generate.php`.
 4. **Update the hand-written layer** (`src/Resources/`) for any new or changed endpoint. `tests/Unit/Resources/SpecCoverageTest.php` fails until every operation in the spec has an SDK method sending the spec's method and path: add the operation to its table, plus a call in `tests/Contract/ContractTest.php`.
 5. **Run everything:** `composer format:check && composer lint && composer test && composer test:contract`.
 
@@ -47,7 +48,7 @@ CI enforces this on every PR:
 | --- | --- |
 | `check:spec` | `spec/` was edited by hand instead of synced |
 | spec coverage test | an operation in the spec has no SDK method, or an SDK method has no operation |
-| `check:drift` | `src/Models` or `src/Enums` doesn't match `spec/v1.yaml` |
+| `check:drift` | `src/Models`, `src/Enums` or `src/Types` doesn't match `spec/v1.yaml` |
 | `test:contract` | the SDK sends a request the spec doesn't allow (Prism mock of the spec) |
 | `lint` | PHPStan finds a problem: level max for `src/` and `tests/`, level 5 for `scripts/` |
 | `test` | behaviour regressed, on any PHP from 8.1 to the newest |

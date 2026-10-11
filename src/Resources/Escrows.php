@@ -10,6 +10,9 @@ use KetaPay\Models\Flag;
 use KetaPay\Page;
 
 /**
+ * @phpstan-import-type CancelEscrowRequest from \KetaPay\Types\Params
+ * @phpstan-import-type CreateFlagRequest from \KetaPay\Types\Params
+ * @phpstan-import-type ListEscrowsParams from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
@@ -30,7 +33,7 @@ final class Escrows extends AbstractResource
     }
 
     /**
-     * @param array<string, scalar|null> $params filters: status, external_reference, limit, cursor
+     * @param ListEscrowsParams $params filters: status, external_reference, limit, cursor
      * @param RequestOptions             $options
      *
      * @return Page<Escrow>
@@ -43,7 +46,7 @@ final class Escrows extends AbstractResource
     /**
      * Refunds the buyer every unreleased milestone. Needs the buyer's or seller's customer token.
      *
-     * @param array<string, mixed>|null $params  optional reason
+     * @param CancelEscrowRequest|null $params  optional reason
      * @param CustomerRequestOptions    $options
      */
     public function cancel(string $id, ?array $params, array $options): Escrow
@@ -54,7 +57,7 @@ final class Escrows extends AbstractResource
     /**
      * Asks KetaPay to review an escrow.
      *
-     * @param array<string, mixed> $params
+     * @param CreateFlagRequest $params
      * @param RequestOptions       $options
      */
     public function flag(string $id, array $params, array $options = []): Flag

@@ -10,6 +10,7 @@ use KetaPay\Page;
 /**
  * The last 30 days of events, for catching up on anything your endpoint missed.
  *
+ * @phpstan-import-type ListEventsParams from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  */
 final class Events extends AbstractResource
@@ -21,7 +22,7 @@ final class Events extends AbstractResource
     }
 
     /**
-     * @param array<string, scalar|null> $params filters: type, limit, cursor
+     * @param ListEventsParams $params filters: type, limit, cursor
      * @param RequestOptions             $options
      *
      * @return Page<Event>
