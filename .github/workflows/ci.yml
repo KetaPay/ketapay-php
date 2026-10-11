@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call: # the publish workflow runs this whole suite on the exact tag before publishing
+    inputs:
+      ref:
+        description: Git ref to check (defaults to the triggering commit)
+        type: string
+        required: false
+
+# Each job is its own check on the PR, so you can see at a glance which kind of test failed.
+# Tooling runs on PHP 8.4; the SDK itself is tested on every supported PHP, 8.1 to the newest.
+jobs:
+  pr-title:
+    name: PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conventional commit title (release notes are built from it)
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert)(\([a-z0-9._-]+\))?!?: .+'
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::PR title must be a conventional commit, like 'feat: add refunds' or 'fix(webhooks): ...'."
+            exit 1
+          fi
+
+  spec:
+    name: Spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - uses: ramsey/composer-install@v3
+      - name: Spec snapshot was not edited by hand
+        run: composer check:spec
+      - name: Generated models match the spec
+        run: composer check:drift
+
+  quality:
+    name: Format, lint, types, audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - uses: ramsey/composer-install@v3
+      - name: composer.json is valid
+        run: composer validate --strict
+      - name: Formatting
+        run: composer format:check
+      - name: Static analysis (PHPStan, level max for the SDK and tests)
+        run: composer lint
+      - name: No known vulnerabilities in what we ship
+        run: composer audit --no-dev
+
+  unit:
+    name: Unit tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: pcov
+          extensions: curl, pcntl
+      - uses: ramsey/composer-install@v3
+      - name: Unit tests with coverage
+        run: composer test:ci
+      - name: Coverage at or above the threshold
+        run: composer test:coverage-check
+      - name: Test report
+        if: always()
+        run: php scripts/test-summary.php >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage report
+        if: always() && matrix.php == '8.4'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+  contract:
+    name: Contract tests (SDK vs spec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: ramsey/composer-install@v3
+      - name: SDK requests against a mock built from the spec
+        run: composer test:contract -- --log-junit reports/contract.xml --testdox-text reports/contract-testdox.txt
+      - name: Test report
+        if: always()
+        run: php scripts/test-summary.php >> "$GITHUB_STEP_SUMMARY"
+
+  package:
+    name: Package works on PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5'] # oldest supported to newest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: curl, zip
+      - uses: ramsey/composer-install@v3
+      - name: The archive installs and works (Composer and init.php, curl and streams, PHPStan types)
+        run: composer smoke:package
+
+  catalogue:
+    name: Test catalogue coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - uses: ramsey/composer-install@v3
+      - name: Every catalogue scenario has a tagged test
+        run: composer test:catalogue

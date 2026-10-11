@@ -1,0 +1,79 @@
+# End-to-end tests: the real SDK against the KetaPay staging API with sandbox keys. Every scenario is
+# tagged with its E2E-xxx id from the shared SDK test catalogue. Runs on every merge to main, nightly,
+# by hand, and inside Publish to Packagist.
+#
+# Settings come from Infisical (project ketapay-sdks, shared by every KetaPay SDK, environment staging):
+#   KETAPAY_E2E_BASE_URL, KETAPAY_E2E_SECRET_KEY (required)
+#   KETAPAY_E2E_OTHER_SECRET_KEY, KETAPAY_E2E_LIVE_SECRET_KEY, KETAPAY_E2E_WEBHOOK_URL (optional, enable more tests)
+# Until the required ones exist, the job reports "not configured" and passes, unless `required` is set
+# (the publish workflow sets it for stable releases).
+name: E2E
+
+on:
+  push:
+    branches: [main] # every merge: a breaking change shows up in minutes, not the next morning
+  workflow_dispatch:
+  schedule:
+    - cron: '30 2 * * *' # nightly, 03:30 Lagos (after ketapay-node's run)
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+      required:
+        description: Fail when E2E is not configured
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E against staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Infisical login
+    steps:
+      - name: Fetch E2E settings from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: 'oidc'
+          oidc-audience: 'https://infisical.com'
+          identity-id: 'ef5c6cbd-0f7e-49a9-a6b7-8d115c2abbd2'
+          project-slug: 'ketapay-sdks-pz5w' # one Infisical project for every KetaPay SDK
+          env-slug: 'staging'
+      - name: Is E2E configured?
+        id: configured
+        env:
+          REQUIRED: ${{ inputs.required }}
+        run: |
+          if [ -n "$KETAPAY_E2E_BASE_URL" ] && [ -n "$KETAPAY_E2E_SECRET_KEY" ]; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          elif [ "$REQUIRED" = "true" ]; then
+            echo "::error::E2E is required for this release but KETAPAY_E2E_BASE_URL / KETAPAY_E2E_SECRET_KEY are not set in Infisical staging."
+            exit 1
+          else
+            echo "### E2E not configured yet: skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.yes == 'true'
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: shivammathur/setup-php@v2
+        if: steps.configured.outputs.yes == 'true'
+        with:
+          php-version: '8.4'
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        if: steps.configured.outputs.yes == 'true'
+      - name: E2E tests
+        if: steps.configured.outputs.yes == 'true'
+        env:
+          KETAPAY_E2E_RUN_ID: e2e-php-gh-${{ github.run_id }} # stamped on all test data, for cleanup
+        run: composer test:e2e -- --log-junit reports/e2e.xml --testdox-text reports/e2e-testdox.txt
+      - name: Test report
+        if: always() && steps.configured.outputs.yes == 'true'
+        run: php scripts/test-summary.php >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+// src/Models and src/Enums are generated: never formatted by hand, checked by the drift check instead.
+$finder = PhpCsFixer\Finder::create()
+    ->in([__DIR__ . '/src', __DIR__ . '/tests', __DIR__ . '/scripts'])
+    ->append([__DIR__ . '/init.php', __FILE__])
+    ->exclude(['Models', 'Enums']);
+
+return (new PhpCsFixer\Config())
+    ->setRiskyAllowed(true)
+    // Contributors may run a newer PHP than the fixer officially supports; the rules don't depend on it.
+    ->setUnsupportedPhpVersionAllowed(true)
+    ->setRules([
+        '@PER-CS2.0' => true,
+        '@PHP81Migration' => true,
+        'declare_strict_types' => true,
+        'no_unused_imports' => true,
+        'ordered_imports' => ['imports_order' => ['class', 'function', 'const'], 'sort_algorithm' => 'alpha'],
+        'single_quote' => true,
+        'trailing_comma_in_multiline' => ['elements' => ['arrays', 'arguments', 'parameters']],
+        'native_function_invocation' => false,
+    ])
+    ->setFinder($finder)
+    ->setCacheFile(__DIR__ . '/.php-cs-fixer.cache');

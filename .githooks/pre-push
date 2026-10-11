@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs before every `git push` and refuses the push if a check fails, so broken code never reaches a PR.
+# Installed by `composer install` (post-install-cmd points git at .githooks). Contract tests and the
+# package smoke test are left to CI to keep this quick.
+set -e
+echo "pre-push: formatting, static analysis, unit tests"
+vendor/bin/php-cs-fixer fix --dry-run --show-progress=none
+vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+vendor/bin/phpstan analyse --memory-limit=1G --no-progress -c phpstan-scripts.neon
+vendor/bin/phpunit --testsuite unit --no-progress
+echo "pre-push: all checks passed"

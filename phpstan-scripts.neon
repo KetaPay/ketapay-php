@@ -1,0 +1,8 @@
+# Dev scripts read untyped YAML and JSON, so they are checked for real mistakes (undefined names, wrong
+# calls) rather than for proving every array shape. The generator's output is checked by the drift check.
+parameters:
+    level: 5
+    paths:
+        - scripts
+        - tests/Support/server.php
+    tmpDir: .phpstan-cache/scripts
