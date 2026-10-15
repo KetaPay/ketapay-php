@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: 5a0c7827a3497642786d4282644c182d01e09b665e39956b33f0eb54e9d441c9 -->
+<!-- sha256: 9f91604338ae733eedc6c3034c91e63e215bdd98b9301e870e907dd4d84d774f -->
 
 # KetaPay SDK test catalogue
 
@@ -60,6 +60,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | REQ-005 | unit | A custom base URL is honoured (trailing slash allowed) |
 | REQ-006 | unit | The customer token is sent in `KetaPay-Customer-Token` when given |
 | REQ-007 | unit | One-time codes and release codes travel in the JSON body |
+| REQ-008 | unit | Creating a webhook endpoint with only a URL is allowed and sends no `enabled_events` (the API defaults it to every event) |
 
 ## ERR: errors and responses
 
