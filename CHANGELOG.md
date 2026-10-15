@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0-beta.1](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.1...v0.1.0-beta.1) (2026-10-15)
+
+
+### Features
+
+* webhook endpoints default to every event ([#12](https://github.com/KetaPay/ketapay-php/issues/12)) ([8568686](https://github.com/KetaPay/ketapay-php/commit/85686866b41fdea90b3ac8a2340d2aa018ed38b3))
+
 ## [0.1.0-beta.1](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.1...v0.1.0-beta.1) (2026-10-11)
 
 
