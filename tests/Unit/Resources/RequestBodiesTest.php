@@ -31,6 +31,14 @@ final class RequestBodiesTest extends TestCase
         self::assertSame('application/json', $t->last()->headers['Content-Type']);
     }
 
+    #[TestDox('[REQ-008] creates a webhook endpoint from a URL alone, leaving the events to the API default')]
+    public function testWebhookEndpointDefaultEvents(): void
+    {
+        $t = new MockTransport(['body' => ['id' => 'we_1', 'object' => 'webhook_endpoint', 'secret' => 'whsec_1']]);
+        self::client($t)->webhookEndpoints->create(['url' => 'https://example.com/hooks']);
+        self::assertSame(['url' => 'https://example.com/hooks'], $t->lastJson());
+    }
+
     #[TestDox('sends params as JSON exactly as given, with unicode and slashes intact')]
     public function testJson(): void
     {

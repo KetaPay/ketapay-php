@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: fe9ea8f68208a3543e2467f270dcd3dd71abb3cd0631cbae4d492a9a938ea42a
+# sha256: 7292f3db41dd1c9226478ad5a46e2e642bf1de919686e554db71131d288deb30
 
 openapi: 3.1.0
 info:
@@ -15,6 +15,19 @@ info:
 
     You can send your customers to KetaPay's hosted checkout, or build every screen yourself on
     this API. Both use the same endpoints.
+
+    ## Libraries
+
+    Official server libraries handle authentication, idempotency keys, retries, pagination and
+    webhook signatures for you, and behave the same in every language:
+
+    | Language | Install |
+    | --- | --- |
+    | Node.js 18+ (also Deno, Bun, Workers) | `npm install @ketapay/node` |
+    | PHP 8.1+ | `composer require ketapay/ketapay-php` |
+    | Laravel 12+ | `composer require ketapay/ketapay-laravel` |
+
+    Source, examples and changelogs: [github.com/KetaPay](https://github.com/KetaPay).
 
     ## How an escrow works
 
@@ -82,8 +95,12 @@ info:
     ## Webhooks
 
     KetaPay sends events to the endpoints you register (see `Webhook endpoints` and the
-    `webhooks` section). Each delivery is a `POST` with the `Event` as its JSON body and a
-    signature header:
+    `webhooks` section). Most integrations need one endpoint that receives every event:
+    register it without `enabled_events` and ignore the types you don't handle. `refund.*` and
+    `chargeback.*` events are not sent yet during the beta; they start when refunds to the
+    buyer's card or bank account and chargeback handling go live.
+
+    Each delivery is a `POST` with the `Event` as its JSON body and a signature header:
 
     ```
     KetaPay-Signature: t=1791640000,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
@@ -91,8 +108,9 @@ info:
 
     `v1` is the hex HMAC-SHA256 of `"{t}.{raw request body}"` keyed with the endpoint's signing
     secret (`whsec_...`). Verify it against the raw body before parsing, compare in constant
-    time, and reject anything where `t` is more than 5 minutes old. `@ketapay/node` does all of
-    this in `ketapay.webhooks.verify()`.
+    time, and reject anything where `t` is more than 5 minutes old. The official libraries do all
+    of this: `ketapay.webhooks.verify()` in Node, `Webhook::verify()` in PHP, and the Laravel
+    package verifies every delivery before your listeners run.
 
     Respond with any `2xx` within 10 seconds. Anything else is retried with exponential backoff
     for 3 days, after which the endpoint is marked `failing` and its owner is emailed. Events can
@@ -1473,7 +1491,8 @@ paths:
         - Webhook endpoints
       summary: Create a webhook endpoint
       description: |
-        Registers an HTTPS URL to receive events. The response is the only time `secret` is
+        Registers an HTTPS URL to receive events. Without `enabled_events` the endpoint receives
+        every event, including types added later. The response is the only time `secret` is
         shown; store it to verify signatures. Up to 10 endpoints per environment.
       x-required-scope: webhook_endpoints:write
       parameters:
@@ -4001,7 +4020,6 @@ components:
       type: object
       required:
         - url
-        - enabled_events
       properties:
         url:
           type: string
@@ -4010,7 +4028,11 @@ components:
         enabled_events:
           type: array
           minItems: 1
-          description: Event types to send, or `["*"]` for all, including types added later
+          default:
+            - '*'
+          description: |
+            Event types to send, or `["*"]` for all, including types added later. Leave it out to
+            receive every event.
           items:
             oneOf:
               - $ref: '#/components/schemas/EventType'

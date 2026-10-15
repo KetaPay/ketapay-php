@@ -20,9 +20,10 @@ use KetaPay\Page;
 final class WebhookEndpoints extends AbstractResource
 {
     /**
-     * The response is the only time `secret` is shown. Store it.
+     * The response is the only time `secret` is shown. Store it. Without `enabled_events` the
+     * endpoint receives every event.
      *
-     * @param CreateWebhookEndpointRequest $params url, enabled_events, description
+     * @param CreateWebhookEndpointRequest $params url, enabled_events (optional), description
      * @param RequestOptions       $options
      */
     public function create(array $params, array $options = []): WebhookEndpointWithSecret
