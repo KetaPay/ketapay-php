@@ -29,6 +29,21 @@ final class HttpClientTest extends TestCase
         self::assertMatchesRegularExpression('/apiKey is required/', $e->getMessage());
     }
 
+    #[TestDox('[AUTH-005] applies options given after the key, or in one config array, and refuses a key given twice')]
+    public function testKeyWithOptions(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'list', 'data' => [], 'has_more' => false, 'next_cursor' => null]], ['body' => ['object' => 'list', 'data' => [], 'has_more' => false, 'next_cursor' => null]]);
+        $baseUrl = 'http://localhost:4010';
+        (new KetaPay('sk_test_123', ['baseUrl' => $baseUrl, 'transport' => $t]))->events->list();
+        (new KetaPay(['apiKey' => 'sk_test_123', 'baseUrl' => $baseUrl, 'transport' => $t]))->events->list();
+        self::assertSame([$baseUrl . '/events', $baseUrl . '/events'], array_map(static fn($r) => $r->url, $t->requests));
+
+        $e = self::catching(\InvalidArgumentException::class, fn() => new KetaPay('sk_test_123', ['apiKey' => 'sk_test_other']));
+        self::assertMatchesRegularExpression('/key is given twice/', $e->getMessage());
+        $e = self::catching(\InvalidArgumentException::class, fn() => new KetaPay(['apiKey' => 'sk_test_123'], ['baseUrl' => $baseUrl]));
+        self::assertMatchesRegularExpression('/inside the config array/', $e->getMessage());
+    }
+
     #[TestDox('[AUTH-004] [REQ-001] [REQ-003] sends the key, an idempotency key on POST and a versioned user agent')]
     public function testHeaders(): void
     {
