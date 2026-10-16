@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: 9f91604338ae733eedc6c3034c91e63e215bdd98b9301e870e907dd4d84d774f -->
+<!-- sha256: baaee54ae4aead40759d1a3b0090c246af39856f3ffd28d5c4b80d8d44984ac7 -->
 
 # KetaPay SDK test catalogue
 
@@ -22,6 +22,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | AUTH-002 | unit | Publishable keys (`pk_`) are refused with a message pointing at the checkout SDK |
 | AUTH-003 | unit | Missing, empty or malformed keys are refused before any request |
 | AUTH-004 | unit | Every request sends `Authorization: Bearer <key>` |
+| AUTH-005 | unit | Options can follow the key (`new KetaPay(key, options)`) or sit in one config object with the key; either way every option is applied. A key given both as the first argument and in the options is refused before any request |
 
 ## SEC: security
 

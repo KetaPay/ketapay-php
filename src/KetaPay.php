@@ -29,6 +29,7 @@ use KetaPay\Resources\Webhooks;
  *     $ketapay = new KetaPay(['apiKey' => $key, 'maxRetries' => 3, 'logLevel' => 'debug', 'logger' => $psr3]);
  *
  * @phpstan-type Config array{apiKey: string, baseUrl?: string, maxRetries?: int, timeoutMs?: int, transport?: Transport, defaultHeaders?: array<string, string>, logLevel?: 'off'|'error'|'warn'|'info'|'debug', logger?: object|callable|null, appInfo?: array{name: string, version: string}}
+ * @phpstan-type Options array{baseUrl?: string, maxRetries?: int, timeoutMs?: int, transport?: Transport, defaultHeaders?: array<string, string>, logLevel?: 'off'|'error'|'warn'|'info'|'debug', logger?: object|callable|null, appInfo?: array{name: string, version: string}}
  * @phpstan-type CustomerRequestOptions array{customerToken: string, idempotencyKey?: string, timeoutMs?: int, maxRetries?: int, cancel?: CancellationToken, headers?: array<string, string>}
  */
 final class KetaPay
@@ -62,11 +63,15 @@ final class KetaPay
     public readonly bool $livemode;
 
     /**
+     * `new KetaPay($key, $options)` or `new KetaPay(['apiKey' => $key, ...$options])`. Options are never
+     * dropped: a key given in both places, or options after a config array, is refused.
+     *
      * @param string|Config $apiKeyOrConfig your secret key (`sk_test_...` or `sk_live_...`), or a config array
+     * @param Options|null $options everything in the config but the key, after a key
      */
-    public function __construct(string|array $apiKeyOrConfig)
+    public function __construct(string|array $apiKeyOrConfig, ?array $options = null)
     {
-        $config = is_string($apiKeyOrConfig) ? ['apiKey' => $apiKeyOrConfig] : $apiKeyOrConfig;
+        $config = self::resolveConfig($apiKeyOrConfig, $options);
         $unknown = array_diff(array_keys($config), self::CONFIG_KEYS);
         if ($unknown !== []) {
             throw new \InvalidArgumentException('KetaPay: unknown config ' . implode(', ', $unknown) . '. Use ' . implode(', ', self::CONFIG_KEYS) . '.');
@@ -128,6 +133,27 @@ final class KetaPay
         }
 
         return "$name/$version";
+    }
+
+    /**
+     * @param string|Config $apiKeyOrConfig
+     * @param Options|null $options
+     * @return Config
+     */
+    private static function resolveConfig(string|array $apiKeyOrConfig, ?array $options): array
+    {
+        if (!is_string($apiKeyOrConfig)) {
+            if ($options !== null) {
+                throw new \InvalidArgumentException('KetaPay: pass options inside the config array, or use new KetaPay($key, $options)');
+            }
+
+            return $apiKeyOrConfig;
+        }
+        if ($options !== null && array_key_exists('apiKey', $options)) {
+            throw new \InvalidArgumentException('KetaPay: the key is given twice; pass it as the first argument only');
+        }
+
+        return ['apiKey' => $apiKeyOrConfig] + ($options ?? []);
     }
 
     private static function isSafeBaseUrl(string $url): bool
