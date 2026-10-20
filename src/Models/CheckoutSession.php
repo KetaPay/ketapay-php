@@ -25,7 +25,7 @@ namespace KetaPay\Models;
  * @property-read string|null $url_on_platform The `url` you sent at creation
  * @property-read list<\KetaPay\KetaPayObject> $milestones The plan. One entry for a single payment.
  * @property-read \KetaPay\KetaPayObject $buyer
- * @property-read \KetaPay\KetaPayObject $seller
+ * @property-read \KetaPay\KetaPayObject|BusinessSeller $seller The seller as you sent them, or your business when you sent none
  * @property-read Release $release
  * @property-read \KetaPay\KetaPayObject|null $commission
  * @property-read string|null $escrow_id Set once the buyer has paid
@@ -44,6 +44,9 @@ final class CheckoutSession extends \KetaPay\KetaPayObject
         'fees' => Fees::class,
         'images' => Image::class,
         'attachments' => Attachment::class,
+        'seller' => [BusinessSeller::class],
         'release' => Release::class,
     ];
+
+    protected const MATCH = ['object' => 'checkout_session'];
 }

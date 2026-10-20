@@ -14,4 +14,7 @@ namespace KetaPay\Models;
  */
 final class EventData extends \KetaPay\KetaPayObject
 {
+    protected const NESTED = [
+        'object' => [CheckoutSession::class, Escrow::class, Dispute::class, Payout::class, Refund::class, Chargeback::class],
+    ];
 }

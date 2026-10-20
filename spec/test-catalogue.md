@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: baaee54ae4aead40759d1a3b0090c246af39856f3ffd28d5c4b80d8d44984ac7 -->
+<!-- sha256: b4bdbda85a60cf70fe0b819e780481c9945ece03e3fbcc25a113b22aa254d1d5 -->
 
 # KetaPay SDK test catalogue
 
@@ -62,6 +62,8 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | REQ-006 | unit | The customer token is sent in `KetaPay-Customer-Token` when given |
 | REQ-007 | unit | One-time codes and release codes travel in the JSON body |
 | REQ-008 | unit | Creating a webhook endpoint with only a URL is allowed and sends no `enabled_events` (the API defaults it to every event) |
+| REQ-009 | unit | Creating a checkout session without a seller is allowed and sends no `seller` (the business sells its own goods) |
+| REQ-010 | unit | Delivering a milestone without a customer token is allowed and sends no `KetaPay-Customer-Token` (the business delivers its own sale) |
 
 ## ERR: errors and responses
 
@@ -152,3 +154,6 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-022 | e2e | Invalid input is refused with the right `param` (party without contact, milestones not adding up, description too short) |
 | E2E-023 | e2e | Lists paginate across more than one page |
 | E2E-024 | e2e | A live key cannot reach test helpers (`test_mode_only`) |
+| E2E-025 | e2e | A checkout session without a seller makes the business the seller (`seller.type` is `business`, by its name); paid, delivered with the key alone and released by the buyer, the escrow ends `completed` with that seller |
+| E2E-026 | e2e | Commission on the business's own sale is refused (`commission_not_allowed`) |
+| E2E-027 | e2e | Delivering a sale between customers without the seller's token is refused (`customer_token_required`) |

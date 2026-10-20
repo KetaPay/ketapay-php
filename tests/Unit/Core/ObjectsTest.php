@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace KetaPay\Tests\Unit\Core;
 
 use KetaPay\KetaPayObject;
+use KetaPay\Models\BusinessSeller;
 use KetaPay\Models\CheckoutSession;
 use KetaPay\Models\Delivery;
 use KetaPay\Models\Escrow;
 use KetaPay\Models\Event;
 use KetaPay\Models\Fees;
 use KetaPay\Models\Milestone;
+use KetaPay\Models\Party;
 use KetaPay\Tests\Support\MockTransport;
 use KetaPay\Tests\Support\TestCase;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -32,6 +34,19 @@ final class ObjectsTest extends TestCase
         self::assertInstanceOf(KetaPayObject::class, $escrow->metadata);
         self::assertSame('7', $escrow->metadata['order']);
         self::assertSame('m1', $escrow->milestones[0]['id']);
+    }
+
+    #[TestDox('hydrates a field that holds one of several models into the one its data matches')]
+    public function testOneOfModels(): void
+    {
+        $person = Escrow::constructFrom(['object' => 'escrow', 'seller' => ['email' => 'tunde@example.com', 'name' => 'Tunde']]);
+        self::assertInstanceOf(Party::class, $person->seller);
+        $business = Escrow::constructFrom(['object' => 'escrow', 'seller' => ['type' => 'business', 'name' => 'Ade Gadgets']]);
+        self::assertInstanceOf(BusinessSeller::class, $business->seller);
+        self::assertSame('Ade Gadgets', $business->seller->name);
+        $session = CheckoutSession::constructFrom(['object' => 'checkout_session', 'seller' => ['email' => 'tunde@example.com']]);
+        self::assertNotInstanceOf(BusinessSeller::class, $session->seller);
+        self::assertSame('tunde@example.com', $session->seller['email']);
     }
 
     #[TestDox('types objects without a schema link by their object field, and keeps unknown fields')]

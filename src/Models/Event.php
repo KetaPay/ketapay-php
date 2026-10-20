@@ -22,4 +22,6 @@ final class Event extends \KetaPay\KetaPayObject
     protected const NESTED = [
         'data' => EventData::class,
     ];
+
+    protected const MATCH = ['object' => 'event'];
 }

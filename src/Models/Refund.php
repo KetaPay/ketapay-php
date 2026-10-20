@@ -23,4 +23,5 @@ namespace KetaPay\Models;
  */
 final class Refund extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'refund'];
 }

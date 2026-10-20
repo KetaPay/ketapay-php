@@ -22,4 +22,5 @@ namespace KetaPay\Models;
  */
 final class WebhookEndpointWithSecret extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'webhook_endpoint'];
 }

@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 7292f3db41dd1c9226478ad5a46e2e642bf1de919686e554db71131d288deb30
+# sha256: 08a0bf7bdabe9edf6b3767181e4cada87e165eeea86f04a0147548e54b7c0864
 
 openapi: 3.1.0
 info:
@@ -50,10 +50,15 @@ info:
     At any point either side can open a dispute, which freezes the affected milestones until
     one side backs down or KetaPay decides.
 
+    **Selling your own goods.** Leave `seller` out of a checkout session and your business is
+    the seller: a shop taking escrow as a way to pay. The buyer sees your business's name, each
+    release is paid into your KetaPay balance (no commission, it is all yours), and you withdraw
+    it from the dashboard's Payouts.
+
     ## Who can move money
 
-    **Your platform is never a party to an escrow.** Your secret key lets you create checkout
-    sessions and read your escrows, but never move escrowed money on its own. Paying,
+    **Your platform is never a party to your customers' escrows.** Your secret key lets you
+    create checkout sessions and read your escrows, but never move escrowed money on its own. Paying,
     delivering, releasing, cancelling, reporting a problem and adding a payout account are
     your customer's decisions, so those calls need proof from that customer as well as your
     key:
@@ -65,6 +70,9 @@ info:
     KetaPay checks that the customer is the right party (only the buyer releases, only the
     seller delivers) and only lets a party settle a dispute against themselves. A leaked secret key on
     its own can therefore never pay out an escrow. KetaPay runs every dispute.
+
+    When you sell your own goods (no `seller` on the checkout session), you are the seller, so
+    your key alone marks your milestones delivered. Releasing is still the buyer's decision.
 
     ## Conventions
 
@@ -681,6 +689,8 @@ paths:
       summary: Mark a milestone delivered
       description: |
         The seller says their part of this milestone is done, with the seller's customer token.
+        When you sell your own goods (the escrow's `seller` is your business), your key alone
+        delivers it; without a token on anyone else's escrow it is `customer_token_required`.
         Only the current milestone (the first one not yet released) can be delivered. Moves no
         money: the buyer then releases it, reports a problem, or (with `auto_release_hours`)
         lets the time run out. Sends `milestone.delivered`.
@@ -688,6 +698,7 @@ paths:
       security:
         - secretKey: []
           customerToken: []
+        - secretKey: []
       parameters:
         - $ref: '#/components/parameters/Id'
         - $ref: '#/components/parameters/MilestoneId'
@@ -2528,6 +2539,7 @@ components:
               description: |
                 Specific reason. Known codes: `parameter_missing`, `parameter_invalid`,
                 `contact_required`, `party_identity_conflict`, `parties_must_differ`, `milestones_total_mismatch`, `commission_exceeds_contract`,
+                `commission_not_allowed`,
                 `release_settings_invalid`, `verification_required`, `checkout_session_not_open`,
                 `escrow_already_flagged`, `escrow_state_invalid`, `milestone_not_current`,
                 `milestone_not_delivered`, `dispute_open`, `escrow_under_review`,
@@ -2640,6 +2652,23 @@ components:
           maxLength: 100
           description: Shown on the checkout and in messages until the person sets their own name on KetaPay
           example: Ada Obi
+    BusinessSeller:
+      type: object
+      required:
+        - type
+        - name
+      description: |
+        The seller when you sell your own goods (a checkout session sent without `seller`): your
+        business, by the name your customers see (your checkout name, else your trading name, else
+        your legal name). Releases are paid into your KetaPay balance.
+      properties:
+        type:
+          type: string
+          enum:
+            - business
+        name:
+          type: string
+          example: Ade Gadgets
     CommissionInput:
       type: object
       required:
@@ -2648,7 +2677,8 @@ components:
         Your cut, taken from the seller's side of each release. Never charged on money refunded
         to the buyer. `rate_bps` is basis points (500 = 5%). `min_amount` and `max_amount` apply
         to the whole escrow; each milestone's release carries its share. Must be within the
-        maximum rate in your KetaPay agreement.
+        maximum rate in your KetaPay agreement. Not allowed when you sell your own goods (no
+        `seller`): `commission_not_allowed`.
       properties:
         rate_bps:
           type: integer
@@ -2671,7 +2701,6 @@ components:
         - title
         - description
         - buyer
-        - seller
       properties:
         amount:
           allOf:
@@ -2726,7 +2755,11 @@ components:
         buyer:
           $ref: '#/components/schemas/PartyInput'
         seller:
-          $ref: '#/components/schemas/PartyInput'
+          allOf:
+            - $ref: '#/components/schemas/PartyInput'
+          description: |
+            Who gets paid. Leave it out when you sell your own goods: your business is the seller,
+            by its name, and each release is paid into your KetaPay balance.
         release:
           $ref: '#/components/schemas/Release'
         commission:
@@ -2889,7 +2922,10 @@ components:
         buyer:
           $ref: '#/components/schemas/PartyInput'
         seller:
-          $ref: '#/components/schemas/PartyInput'
+          description: The seller as you sent them, or your business when you sent none
+          oneOf:
+            - $ref: '#/components/schemas/PartyInput'
+            - $ref: '#/components/schemas/BusinessSeller'
         release:
           $ref: '#/components/schemas/Release'
         commission:
@@ -3377,7 +3413,10 @@ components:
         buyer:
           $ref: '#/components/schemas/Party'
         seller:
-          $ref: '#/components/schemas/Party'
+          description: The seller, or your business when you sell your own goods
+          oneOf:
+            - $ref: '#/components/schemas/Party'
+            - $ref: '#/components/schemas/BusinessSeller'
         release:
           $ref: '#/components/schemas/Release'
         checkout_session_id:

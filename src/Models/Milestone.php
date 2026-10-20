@@ -34,4 +34,6 @@ final class Milestone extends \KetaPay\KetaPayObject
         'payout' => Payout::class,
         'refund' => Refund::class,
     ];
+
+    protected const MATCH = ['object' => 'milestone'];
 }

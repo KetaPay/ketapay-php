@@ -80,6 +80,8 @@ final class ContractTest extends TestCase
         self::assertSame('customer_token', $k->customerSessions->verify(self::IDS['session'], '123456')->object);
         $k->checkoutSessions->bankTransfer(self::IDS['session'], self::CUSTOMER);
         $k->escrows->milestones->deliver(self::IDS['escrow'], self::IDS['milestone'], ['note' => 'Designs ready'], self::CUSTOMER);
+        $k->escrows->milestones->deliver(self::IDS['escrow'], self::IDS['milestone'], ['note' => 'Shipped with GIG']);
+        $k->checkoutSessions->create(['amount' => 2_500_000, 'title' => 'Desk lamp', 'description' => 'Brass desk lamp with a warm LED bulb, boxed.', 'buyer' => ['email' => 'ada@example.com']]);
         $k->escrows->milestones->release(self::IDS['escrow'], self::IDS['milestone'], [], self::CUSTOMER);
         $k->escrows->milestones->release(self::IDS['escrow'], self::IDS['milestone'], ['release_code' => '731045']);
         $k->escrows->milestones->releaseCode(self::IDS['escrow'], self::IDS['milestone'], self::CUSTOMER);

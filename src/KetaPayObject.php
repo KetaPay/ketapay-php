@@ -18,11 +18,20 @@ class KetaPayObject implements \ArrayAccess, \JsonSerializable
 {
     /**
      * Field name => class of the nested object (or of each item, for lists). Generated models fill it in;
-     * other nested objects are typed by their `object` field.
+     * other nested objects are typed by their `object` field. A field that can hold one of several
+     * models lists them all, and the one whose MATCH fits the data is used.
      *
-     * @var array<string, class-string<KetaPayObject>>
+     * @var array<string, class-string<KetaPayObject>|list<class-string<KetaPayObject>>>
      */
     protected const NESTED = [];
+
+    /**
+     * Field values that tell this model apart from the others a field may hold (e.g. `type` =>
+     * `business`). A model with none is the one used when no other matches.
+     *
+     * @var array<string, string>
+     */
+    protected const MATCH = [];
 
     /** @var array<string, mixed> */
     private array $values = [];
@@ -112,7 +121,7 @@ class KetaPayObject implements \ArrayAccess, \JsonSerializable
     }
 
     /**
-     * @param array<string, class-string<KetaPayObject>> $nested
+     * @param array<string, class-string<KetaPayObject>|list<class-string<KetaPayObject>>> $nested
      */
     protected function fill(\stdClass $data, array $nested): void
     {
@@ -122,11 +131,14 @@ class KetaPayObject implements \ArrayAccess, \JsonSerializable
     }
 
     /**
-     * @param class-string<KetaPayObject>|null $class
+     * @param class-string<KetaPayObject>|list<class-string<KetaPayObject>>|null $class
      */
-    private static function hydrate(mixed $value, ?string $class): mixed
+    private static function hydrate(mixed $value, string|array|null $class): mixed
     {
         if ($value instanceof \stdClass) {
+            if (is_array($class)) {
+                $class = self::matching($value, $class);
+            }
             if ($class === null) {
                 $type = isset($value->object) && is_string($value->object) ? $value->object : '';
                 $class = ObjectTypes::MAP[$type] ?? self::class;
@@ -139,6 +151,34 @@ class KetaPayObject implements \ArrayAccess, \JsonSerializable
         }
 
         return $value;
+    }
+
+    /**
+     * The model among several whose MATCH fits the data, else the one without a MATCH, else none.
+     *
+     * @param list<class-string<KetaPayObject>> $classes
+     *
+     * @return class-string<KetaPayObject>|null
+     */
+    private static function matching(\stdClass $value, array $classes): ?string
+    {
+        $fallback = null;
+        foreach ($classes as $class) {
+            if ($class::MATCH === []) {
+                $fallback ??= $class;
+
+                continue;
+            }
+            $fits = true;
+            foreach ($class::MATCH as $field => $expected) {
+                $fits = $fits && ($value->{$field} ?? null) === $expected;
+            }
+            if ($fits) {
+                return $class;
+            }
+        }
+
+        return $fallback;
     }
 
     private static function plain(mixed $value): mixed

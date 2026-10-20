@@ -29,4 +29,5 @@ namespace KetaPay\Models;
  */
 final class Dispute extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'dispute'];
 }
