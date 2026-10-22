@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0-beta.2](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.1...v0.1.0-beta.2) (2026-10-22)
+
+
+### Features
+
+* checkout sessions without a seller, for a business selling its own goods ([#16](https://github.com/KetaPay/ketapay-php/issues/16)) ([2b480a4](https://github.com/KetaPay/ketapay-php/commit/2b480a44c1c9dd9cb780f2bfbfa7d52f3d001e4e))
+* webhook endpoints default to every event ([#12](https://github.com/KetaPay/ketapay-php/issues/12)) ([8568686](https://github.com/KetaPay/ketapay-php/commit/85686866b41fdea90b3ac8a2340d2aa018ed38b3))
+
+
+### Bug Fixes
+
+* accept options after the key in the KetaPay constructor ([#14](https://github.com/KetaPay/ketapay-php/issues/14)) ([a4aa5c7](https://github.com/KetaPay/ketapay-php/commit/a4aa5c71e3b513585e56bb57aeffcbf3c0380afe))
+
 ## [0.1.0-beta.1](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.1...v0.1.0-beta.1) (2026-10-11)
 
 
