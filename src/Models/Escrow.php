@@ -23,7 +23,7 @@ namespace KetaPay\Models;
  * @property-read list<Attachment> $attachments KetaPay's copies of the documents sent at checkout
  * @property-read list<Milestone> $milestones In order. One entry for a single payment.
  * @property-read Party $buyer
- * @property-read Party $seller
+ * @property-read Party|BusinessSeller $seller The seller, or your business when you sell your own goods
  * @property-read Release $release
  * @property-read string $checkout_session_id
  * @property-read string|null $open_dispute_id The dispute currently open, if any. `GET /escrows/{id}/disputes` lists them all.
@@ -44,8 +44,10 @@ final class Escrow extends \KetaPay\KetaPayObject
         'attachments' => Attachment::class,
         'milestones' => Milestone::class,
         'buyer' => Party::class,
-        'seller' => Party::class,
+        'seller' => [Party::class, BusinessSeller::class],
         'release' => Release::class,
         'timeline' => TimelineEntry::class,
     ];
+
+    protected const MATCH = ['object' => 'escrow'];
 }

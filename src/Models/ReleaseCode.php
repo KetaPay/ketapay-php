@@ -16,4 +16,5 @@ namespace KetaPay\Models;
  */
 final class ReleaseCode extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'release_code'];
 }

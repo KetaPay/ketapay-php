@@ -19,4 +19,5 @@ namespace KetaPay\Models;
  */
 final class BankTransferInstructions extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'bank_transfer_instructions'];
 }

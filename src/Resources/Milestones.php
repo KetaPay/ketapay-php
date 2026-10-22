@@ -16,14 +16,15 @@ use KetaPay\Models\ReleaseCode;
 final class Milestones extends AbstractResource
 {
     /**
-     * The seller marks the milestone delivered. Needs the seller's customer token.
+     * The seller marks the milestone delivered. Needs the seller's customer token, except on your
+     * own sale (the escrow's `seller` is your business), where your key alone delivers it.
      *
-     * @param DeliverMilestoneRequest   $params  note, attachments
-     * @param CustomerRequestOptions $options
+     * @param DeliverMilestoneRequest $params  note, attachments
+     * @param RequestOptions          $options
      */
-    public function deliver(string $escrowId, string $milestoneId, array $params, array $options): Escrow
+    public function deliver(string $escrowId, string $milestoneId, array $params = [], array $options = []): Escrow
     {
-        return $this->object(Escrow::class, 'POST', self::path($escrowId, $milestoneId) . '/deliver', $params, self::customer($options));
+        return $this->object(Escrow::class, 'POST', self::path($escrowId, $milestoneId) . '/deliver', $params, $options);
     }
 
     /**

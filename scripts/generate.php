@@ -35,8 +35,13 @@ $resolve = static function (array $schema) use ($schemas): array {
 $isModel = static fn(string $name): bool => !$isSkipped($name)
     && ($schemas[$name]['type'] ?? null) === 'object' && isset($schemas[$name]['properties']);
 
-/** The model class a property holds (or holds a list of), if any. */
-$nestedClass = static function (array $schema) use (&$nestedClass, $isModel): ?string {
+/**
+ * The model class a property holds (or holds a list of), if any. A oneOf of several schemas gives
+ * every model among them: the object picks the one its data matches (KetaPayObject::MATCH).
+ *
+ * @return string|list<string>|null
+ */
+$nestedClass = static function (array $schema) use (&$nestedClass, $isModel): string|array|null {
     if (isset($schema['$ref'])) {
         $name = basename($schema['$ref']);
 
@@ -49,8 +54,12 @@ $nestedClass = static function (array $schema) use (&$nestedClass, $isModel): ?s
         if (isset($schema[$key])) {
             $classes = array_values(array_filter(array_map($nestedClass, $schema[$key])));
             $refs = array_filter($schema[$key], static fn(array $s): bool => isset($s['$ref']));
+            if (count($classes) === 1 && count($refs) === 1) {
+                return $classes[0];
+            }
+            $models = array_values(array_filter($classes, 'is_string'));
 
-            return count($classes) === 1 && count($refs) === 1 ? $classes[0] : null;
+            return $key === 'oneOf' && count($refs) > 1 && $models !== [] && count($models) === count($classes) ? $models : null;
         }
     }
 
@@ -181,6 +190,7 @@ while ($queue !== []) {
     unset($queue[$name]);
     $docs = [];
     $nested = [];
+    $match = [];
     foreach ($properties($schema) as $field => $prop) {
         $inline = $inlineObject($prop);
         $type = $phpType($prop);
@@ -191,8 +201,15 @@ while ($queue !== []) {
             $type = $inline['list'] ? "list<$class>" : $class . ($inline['nullable'] ? '|null' : '');
         }
         $docs[] = " * @property-read $type \${$field}{$oneLine($prop['description'] ?? null)}{$enumHint($prop)}";
-        if ($class !== null) {
+        if (is_array($class)) {
+            $nested[] = "        '$field' => [" . implode(', ', array_map(static fn(string $c): string => "$c::class", $class)) . '],';
+        } elseif ($class !== null) {
             $nested[] = "        '$field' => $class::class,";
+        }
+        // `object` or `type` with one possible value tells this model apart in a oneOf (escrow, business)
+        $only = isset($resolve($prop)['const']) ? [$resolve($prop)['const']] : ($resolve($prop)['enum'] ?? null);
+        if (in_array($field, ['object', 'type'], true) && is_array($only) && count($only) === 1 && is_string($only[0])) {
+            $match[] = "'$field' => '{$only[0]}'";
         }
         $const = $resolve($prop)['const'] ?? null;
         if ($field === 'object' && is_string($const) && $named) {
@@ -204,6 +221,9 @@ while ($queue !== []) {
         . "final class $name extends \\KetaPay\\KetaPayObject\n{\n";
     if ($nested !== []) {
         $body .= "    protected const NESTED = [\n" . implode("\n", $nested) . "\n    ];\n";
+    }
+    if ($match !== []) {
+        $body .= ($nested !== [] ? "\n" : '') . '    protected const MATCH = [' . implode(', ', $match) . "];\n";
     }
     $out['Models']["$name.php"] = $body . "}\n";
 }

@@ -21,4 +21,5 @@ namespace KetaPay\Models;
  */
 final class PayoutAccount extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'payout_account'];
 }

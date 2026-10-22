@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace KetaPay\Tests\Unit\Resources;
 
+use KetaPay\Models\BusinessSeller;
 use KetaPay\Tests\Support\MockTransport;
 use KetaPay\Tests\Support\TestCase;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -29,6 +30,29 @@ final class RequestBodiesTest extends TestCase
         self::client($t)->escrows->milestones->release('e1', 'm1', ['release_code' => '731045']);
         self::assertSame(['release_code' => '731045'], $t->lastJson());
         self::assertSame('application/json', $t->last()->headers['Content-Type']);
+    }
+
+    #[TestDox('[REQ-009] creates a checkout session without a seller, sending no seller (the business sells it)')]
+    public function testBusinessOwnSale(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'checkout_session', 'seller' => ['type' => 'business', 'name' => 'Ade Gadgets']]]);
+        $session = self::client($t)->checkoutSessions->create([
+            'amount' => 2_500_000,
+            'title' => 'Desk lamp',
+            'description' => 'Brass desk lamp with a warm LED bulb, boxed.',
+            'buyer' => ['email' => 'ada@example.com'],
+        ]);
+        self::assertArrayNotHasKey('seller', $t->lastJson());
+        self::assertInstanceOf(BusinessSeller::class, $session->seller);
+    }
+
+    #[TestDox('[REQ-010] delivers without a customer token on the business own sale, sending no token header')]
+    public function testDeliverWithKeyAlone(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'escrow']]);
+        self::client($t)->escrows->milestones->deliver('e1', 'm1', ['note' => 'Shipped with GIG']);
+        self::assertArrayNotHasKey('KetaPay-Customer-Token', $t->last()->headers);
+        self::assertSame(['note' => 'Shipped with GIG'], $t->lastJson());
     }
 
     #[TestDox('[REQ-008] creates a webhook endpoint from a URL alone, leaving the events to the API default')]

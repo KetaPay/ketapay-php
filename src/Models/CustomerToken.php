@@ -18,4 +18,5 @@ namespace KetaPay\Models;
  */
 final class CustomerToken extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'customer_token'];
 }

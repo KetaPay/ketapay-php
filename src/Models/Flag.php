@@ -19,4 +19,5 @@ namespace KetaPay\Models;
  */
 final class Flag extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'flag'];
 }

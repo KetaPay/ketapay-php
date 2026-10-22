@@ -18,4 +18,5 @@ namespace KetaPay\Models;
  */
 final class WebhookTestResult extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'webhook_test_result'];
 }

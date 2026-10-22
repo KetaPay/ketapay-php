@@ -25,4 +25,5 @@ namespace KetaPay\Models;
  */
 final class Chargeback extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'chargeback'];
 }

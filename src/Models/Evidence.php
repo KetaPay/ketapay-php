@@ -22,4 +22,6 @@ final class Evidence extends \KetaPay\KetaPayObject
     protected const NESTED = [
         'files' => File::class,
     ];
+
+    protected const MATCH = ['object' => 'evidence'];
 }

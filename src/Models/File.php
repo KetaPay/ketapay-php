@@ -20,4 +20,5 @@ namespace KetaPay\Models;
  */
 final class File extends \KetaPay\KetaPayObject
 {
+    protected const MATCH = ['object' => 'file'];
 }

@@ -33,7 +33,6 @@ final class SecurityAndDefaultsTest extends TestCase
         // lint if the signature ever stops requiring the token. The runtime half is asserted underneath.
         $calls = [
             'cancel an escrow' => fn() => $k->escrows->cancel('e1', null, []), // @phpstan-ignore argument.type
-            'deliver a milestone' => fn() => $k->escrows->milestones->deliver('e1', 'm1', [], ['customerToken' => '']), // types allow it; refused at runtime
             'see a release code' => fn() => $k->escrows->milestones->releaseCode('e1', 'm1', []), // @phpstan-ignore argument.type
             'open a dispute' => fn() => $k->disputes->create('e1', ['reason' => 'damaged', 'description' => 'Arrived cracked'], ['idempotencyKey' => 'x']), // @phpstan-ignore argument.type
             'concede' => fn() => $k->disputes->concede('d1', []), // @phpstan-ignore argument.type
