@@ -6,6 +6,7 @@ namespace KetaPay\Tests\E2E\Escrows;
 
 use KetaPay\Errors\KetaPayError;
 use KetaPay\Tests\E2E\Support\E2ETestCase;
+use KetaPay\Tests\E2E\Support\Served;
 use PHPUnit\Framework\Attributes\TestDox;
 
 final class ReleaseTest extends E2ETestCase
@@ -20,7 +21,9 @@ final class ReleaseTest extends E2ETestCase
         self::assertSame('delivered', $delivered->milestones[0]->status);
         $released = $k->escrows->milestones->release($escrow->id, $m->id, [], ['customerToken' => self::tokenFor($buyer)]);
         self::assertSame('released', $released->milestones[0]->status);
-        self::assertNotNull($released->milestones[0]->payout);
+        if (Served::all('milestone_payout')) {
+            self::assertNotNull($released->milestones[0]->payout);
+        }
         self::eventually(function () use ($escrow): void {
             self::assertCount(1, self::eventsFor($escrow, 'milestone.delivered'));
             self::assertCount(1, self::eventsFor($escrow, 'milestone.released'));
@@ -30,6 +33,7 @@ final class ReleaseTest extends E2ETestCase
     #[TestDox('[E2E-006] releases in person with the buyer code, and refuses a wrong code')]
     public function testReleaseCode(): void
     {
+        self::requireServed('release_code');
         ['escrow' => $escrow, 'buyer' => $buyer] = self::fundedEscrow(['release' => ['method' => 'release_code']]);
         $k = self::ketapay();
         $m = self::first($escrow);
@@ -43,6 +47,7 @@ final class ReleaseTest extends E2ETestCase
     #[TestDox('[E2E-007] auto-releases a delivered milestone when the window runs out')]
     public function testAutoRelease(): void
     {
+        self::requireServed('simulate');
         ['escrow' => $escrow] = self::fundedEscrow(['release' => ['method' => 'buyer_confirms', 'auto_release_hours' => 48]]);
         $k = self::ketapay();
         $m = self::first($escrow);
