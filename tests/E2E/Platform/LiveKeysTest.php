@@ -15,6 +15,7 @@ final class LiveKeysTest extends E2ETestCase
     #[TestDox('[E2E-024] the API refuses test helpers for a live key')]
     public function testLiveKeyRefused(): void
     {
+        self::requireServed('simulate');
         $live = Env::liveKey() ?? self::markTestSkipped('KETAPAY_E2E_LIVE_SECRET_KEY not set');
         // The SDK refuses before sending (SEC-005), so call the API directly to prove the server refuses too.
         $response = (new CurlTransport())->send(new Request(

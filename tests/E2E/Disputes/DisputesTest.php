@@ -13,6 +13,7 @@ final class DisputesTest extends E2ETestCase
     #[TestDox('[E2E-009] dispute with uploaded evidence, seller concedes: resolved and refunded')]
     public function testConcede(): void
     {
+        self::requireServed('disputes', 'files');
         ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
         $k = self::ketapay();
         $buyerToken = self::tokenFor($buyer);
@@ -29,6 +30,7 @@ final class DisputesTest extends E2ETestCase
     #[TestDox('[E2E-010] a dispute KetaPay resolves with a partial refund splits the money')]
     public function testPartialRefund(): void
     {
+        self::requireServed('disputes', 'simulate');
         ['escrow' => $escrow, 'buyer' => $buyer] = self::fundedEscrow();
         $k = self::ketapay();
         $m = self::first($escrow);
@@ -43,6 +45,7 @@ final class DisputesTest extends E2ETestCase
     #[TestDox('[E2E-021] an open dispute blocks the normal release')]
     public function testDisputeBlocksRelease(): void
     {
+        self::requireServed('disputes');
         ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
         $k = self::ketapay();
         $m = self::first($escrow);
