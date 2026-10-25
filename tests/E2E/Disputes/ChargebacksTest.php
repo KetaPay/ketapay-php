@@ -12,6 +12,7 @@ final class ChargebacksTest extends E2ETestCase
     #[TestDox('[E2E-011] a lost chargeback closes as lost and records chargeback.closed')]
     public function testLostChargeback(): void
     {
+        self::requireServed('chargebacks', 'simulate');
         ['escrow' => $escrow] = self::fundedEscrow();
         $k = self::ketapay();
         $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'open_chargeback']);

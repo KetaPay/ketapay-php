@@ -13,6 +13,7 @@ final class PayoutsTest extends E2ETestCase
     #[TestDox('[E2E-014] adds a payout account and confirms it with the code')]
     public function testPayoutAccount(): void
     {
+        self::requireServed('payout_accounts');
         $k = self::ketapay();
         $options = ['customerToken' => self::tokenFor(self::people()['seller']['email'])];
         $pending = $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0000000000'], $options);
@@ -23,6 +24,7 @@ final class PayoutsTest extends E2ETestCase
     #[TestDox("[E2E-012] a failed payout records payout.failed and keeps the money in the seller's balance")]
     public function testFailedPayout(): void
     {
+        self::requireServed('simulate', 'milestone_payout');
         ['escrow' => $escrow] = self::fundedEscrow();
         $k = self::ketapay();
         $m = self::first($escrow);

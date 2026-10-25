@@ -12,6 +12,7 @@ final class RefundsTest extends E2ETestCase
     #[TestDox("[E2E-013] a failed card refund moves the money to the buyer's balance")]
     public function testFailedRefund(): void
     {
+        self::requireServed('escrow_cancel', 'simulate', 'milestone_payout');
         ['escrow' => $escrow, 'buyer' => $buyer] = self::fundedEscrow();
         $k = self::ketapay();
         $k->escrows->cancel($escrow->id, null, ['customerToken' => self::tokenFor($buyer)]);
