@@ -28,6 +28,14 @@ abstract class E2ETestCase extends TestCase
         }
     }
 
+    /** Skips the test until the API serves every feature listed (see Served). */
+    protected static function requireServed(string ...$features): void
+    {
+        if (!Served::all(...$features)) {
+            self::markTestSkipped('Not served by the API yet: ' . implode(', ', $features));
+        }
+    }
+
     /** A client for the staging API. Retries once on network errors. */
     protected static function ketapay(?string $apiKey = null): KetaPay
     {

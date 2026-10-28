@@ -16,7 +16,7 @@ final class CheckoutSessionsTest extends E2ETestCase
     {
         $who = self::people();
         $who['buyer']['phone'] = '+2348012345678';
-        $session = self::ketapay()->checkoutSessions->create(self::sessionParams($who, ['images' => [['url' => 'https://picsum.photos/seed/ketapay/600/400.jpg']]]));
+        $session = self::ketapay()->checkoutSessions->create(self::sessionParams($who, ['images' => [['url' => 'https://ketapay.com/logo.png']]]));
         self::assertSame('open', $session->status);
         self::assertStringStartsWith('https://', (string) $session->url);
         self::assertCount(2, $session->milestones);
@@ -29,6 +29,7 @@ final class CheckoutSessionsTest extends E2ETestCase
     #[TestDox("[E2E-003] returns bank transfer details for the buyer's token, and refuses someone else's")]
     public function testBankTransfer(): void
     {
+        self::requireServed('bank_transfer');
         $who = self::people();
         $k = self::ketapay();
         $session = $k->checkoutSessions->create(self::sessionParams($who));

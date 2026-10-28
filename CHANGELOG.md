@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0-beta.3](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.2...v0.1.0-beta.3) (2026-10-25)
+
+
+### Bug Fixes
+
+* skip E2E scenarios the API doesn't serve yet, like the Node SDK ([#18](https://github.com/KetaPay/ketapay-php/issues/18)) ([7efc029](https://github.com/KetaPay/ketapay-php/commit/7efc029ecec831433c5ffdd97c9a3dba0749c3ec))
+
 ## [0.1.0-beta.2](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.1...v0.1.0-beta.2) (2026-10-22)
 
 
