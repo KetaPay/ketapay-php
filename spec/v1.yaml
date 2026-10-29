@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 08a0bf7bdabe9edf6b3767181e4cada87e165eeea86f04a0147548e54b7c0864
+# sha256: 84cd7d7246718a16508d82b59986c7a4323f2d1bf60dc64f5021bc16b9a14136
 
 openapi: 3.1.0
 info:
@@ -262,8 +262,10 @@ tags:
       act.
   - name: Files
     description: |
-      Upload a file once, then refer to it by id in checkout attachments, milestone deliveries
-      and dispute evidence. JPEG, PNG, HEIC, WebP, PDF and MP4, up to 25 MB each.
+      Upload a file your user gave you, then refer to it by id in a milestone delivery or in
+      dispute and chargeback evidence. JPEG, PNG, HEIC, WebP, PDF and MP4, up to 25 MB each.
+      KetaPay keeps every file of an escrow until 180 days after its last milestone ends, and
+      longer while a dispute or chargeback on it is open.
   - name: Banks
     description: Nigerian banks for your payout account form.
   - name: Webhook endpoints
@@ -287,9 +289,9 @@ paths:
         **What is agreed.** `title` and `description` (both required) say what is being bought;
         `images` show it (the first is the cover on checkout, in messages and on the escrow);
         `attachments` hold documents such as a brief, a contract or title papers. KetaPay copies
-        all of it when the session is created and keeps that copy with the escrow as evidence
-        for any dispute, so later changes to your listing or record don't change what was
-        agreed.
+        all of it when the session is created, shows the buyer that copy at checkout and keeps
+        it with the escrow as evidence for any dispute, so later changes to your listing or
+        record don't change what was agreed. A link that can't be downloaded fails the request.
 
         **Milestones.** Pass `milestones` to split the payment into stages released one at a
         time, in order. Leave it out for a single payment: KetaPay creates one milestone for
@@ -1274,12 +1276,15 @@ paths:
 
         | Purpose | Proof needed | Used in |
         | --- | --- | --- |
-        | `agreement` | Your key | Checkout session `attachments` |
         | `delivery` | Key plus the seller's customer token | Milestone delivery `attachments` |
         | `dispute_evidence` | Key plus the buyer's or seller's customer token | Dispute evidence `files` |
 
-        A file can only be used by the customer who uploaded it, and only for its purpose.
-        Unused files are deleted after 24 hours.
+        Use it for files that start with your users, such as photos and videos taken on their
+        phone. Checkout `images` and `attachments` take links instead: KetaPay copies them.
+
+        A file can only be used by the customer who uploaded it (or by you, when you sell
+        yourself), only once, and only for its purpose. Unused files are deleted after 24 hours.
+        JPEG, PNG, HEIC, WebP, PDF and MP4, up to 25 MB.
       x-required-scope: files:write
       security:
         - secretKey: []
@@ -2412,31 +2417,16 @@ components:
     Image:
       type: object
       description: |
-        Send either `file` (an id from `POST /files` with purpose `agreement`) or `url` (an HTTPS
-        link KetaPay copies). JPEG, PNG, HEIC or WebP. Responses carry KetaPay's own `url` plus a
-        small `thumbnail_url`.
-      anyOf:
-        - type: object
-          required:
-            - file
-          properties:
-            file:
-              type: string
-              format: uuid
-        - type: object
-          required:
-            - url
-          properties:
-            url:
-              type: string
-              format: uri
+        Send `url`, an HTTPS link to a JPEG, PNG, HEIC or WebP. KetaPay copies the image when the
+        session is created. Responses carry KetaPay's own `url` plus a small `thumbnail_url`.
+      required:
+        - url
       properties:
-        file:
-          type: string
-          format: uuid
         url:
           type: string
           format: uri
+          description: |
+            In a request, your HTTPS link. In a response, a link to KetaPay's copy, valid for 1 hour.
         thumbnail_url:
           type: string
           format: uri
@@ -2450,8 +2440,31 @@ components:
     Attachment:
       type: object
       description: |
-        Send either `file` (an id from `POST /files`) or `url` (an HTTPS link KetaPay copies, so
-        it survives your copy being deleted). Responses always carry KetaPay's own `url`.
+        A document. Send `url`, an HTTPS link KetaPay copies, so it survives your copy being deleted
+        or changed. Responses carry KetaPay's own `url` and the `sha256` of what was copied.
+      required:
+        - url
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          example: Project brief.pdf
+        url:
+          type: string
+          format: uri
+          description: |
+            In a request, your HTTPS link. In a response, a link to KetaPay's copy, valid for 1 hour.
+        sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          readOnly: true
+          example: 9f2c4e1a7b3d5f6e8a0c2b4d6f8e1a3c5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e
+          description: Fingerprint of the copy, to prove the file is the one that was agreed
+    DeliveryAttachment:
+      type: object
+      description: |
+        Proof of delivery. Send either `file` (an id from `POST /files` with purpose `delivery`,
+        for a photo or video the seller took) or `url` (an HTTPS link KetaPay copies).
       anyOf:
         - type: object
           required:
@@ -2471,7 +2484,7 @@ components:
         name:
           type: string
           maxLength: 120
-          example: Project brief.pdf
+          example: Delivered designs.pdf
         file:
           type: string
           format: uuid
@@ -3471,7 +3484,7 @@ components:
           type: array
           maxItems: 10
           items:
-            $ref: '#/components/schemas/Attachment'
+            $ref: '#/components/schemas/DeliveryAttachment'
     ReleaseMilestoneRequest:
       type: object
       properties:
@@ -3774,7 +3787,6 @@ components:
     FilePurpose:
       type: string
       enum:
-        - agreement
         - delivery
         - dispute_evidence
     File:
@@ -4322,6 +4334,7 @@ components:
         attachments:
           - name: Project brief.pdf
             url: https://files.ketapay.com/attachments/2c9a7f4e/brief.pdf
+            sha256: 9f2c4e1a7b3d5f6e8a0c2b4d6f8e1a3c5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e
         url_on_platform: null
         milestones:
           - title: Design
@@ -4384,6 +4397,7 @@ components:
         attachments:
           - name: Project brief.pdf
             url: https://files.ketapay.com/attachments/2c9a7f4e/brief.pdf
+            sha256: 9f2c4e1a7b3d5f6e8a0c2b4d6f8e1a3c5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e
         milestones:
           - id: 7c2e9a41-3b5d-4f6e-8a1c-9d0b2e4f6a83
             object: milestone
@@ -4398,6 +4412,7 @@ components:
               attachments:
                 - name: Homepage.png
                   url: https://files.ketapay.com/deliveries/7c2e9a41/homepage.png
+                  sha256: 9f2c4e1a7b3d5f6e8a0c2b4d6f8e1a3c5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e
               delivered_at: '2026-10-22T16:05:00Z'
             auto_release_at: '2026-10-29T16:05:00Z'
             seller_fee: 600000

@@ -16,13 +16,13 @@ final class FilesAndSandboxTest extends TestCase
     public function testMultipart(): void
     {
         $t = new MockTransport(['body' => ['id' => 'f1', 'object' => 'file']]);
-        $file = self::client($t)->files->create(['file' => '%PDF-1.7', 'filename' => 'brief.pdf', 'purpose' => 'agreement'], ['customerToken' => 't']);
+        $file = self::client($t)->files->create(['file' => '%PDF-1.7', 'filename' => 'brief.pdf', 'purpose' => 'delivery'], ['customerToken' => 't']);
         self::assertInstanceOf(File::class, $file);
         $r = $t->last();
         self::assertMatchesRegularExpression('#^multipart/form-data; boundary=(ketapay-[0-9a-f]{32})$#', $r->headers['Content-Type']);
         $boundary = substr($r->headers['Content-Type'], strlen('multipart/form-data; boundary='));
         self::assertStringContainsString("Content-Disposition: form-data; name=\"file\"; filename=\"brief.pdf\"\r\nContent-Type: application/octet-stream\r\n\r\n%PDF-1.7\r\n", (string) $r->body);
-        self::assertStringContainsString("Content-Disposition: form-data; name=\"purpose\"\r\n\r\nagreement\r\n--$boundary--", (string) $r->body);
+        self::assertStringContainsString("Content-Disposition: form-data; name=\"purpose\"\r\n\r\ndelivery\r\n--$boundary--", (string) $r->body);
         self::assertNull(json_decode((string) $r->body));
     }
 
@@ -38,13 +38,13 @@ final class FilesAndSandboxTest extends TestCase
         try {
             $t = new MockTransport(['body' => []], ['body' => []]);
             $k = self::client($t);
-            $k->files->create(['file' => new \SplFileInfo($path), 'filename' => 'a.txt', 'purpose' => 'agreement']);
-            $k->files->create(['file' => $stream, 'filename' => 'b.txt', 'purpose' => 'agreement']);
+            $k->files->create(['file' => new \SplFileInfo($path), 'filename' => 'a.txt', 'purpose' => 'delivery']);
+            $k->files->create(['file' => $stream, 'filename' => 'b.txt', 'purpose' => 'delivery']);
             self::assertStringContainsString("\r\n\r\nfrom disk\r\n", (string) $t->requests[0]->body);
             self::assertStringContainsString("\r\n\r\nfrom stream\r\n", (string) $t->requests[1]->body);
-            self::catching(\InvalidArgumentException::class, fn() => $k->files->create(['file' => new \SplFileInfo('/nope/missing'), 'filename' => 'c', 'purpose' => 'agreement']));
+            self::catching(\InvalidArgumentException::class, fn() => $k->files->create(['file' => new \SplFileInfo('/nope/missing'), 'filename' => 'c', 'purpose' => 'delivery']));
             /** @phpstan-ignore argument.type (a wrong type on purpose) */
-            self::catching(\InvalidArgumentException::class, fn() => $k->files->create(['file' => 42, 'filename' => 'c', 'purpose' => 'agreement']));
+            self::catching(\InvalidArgumentException::class, fn() => $k->files->create(['file' => 42, 'filename' => 'c', 'purpose' => 'delivery']));
             self::assertCount(2, $t->requests);
         } finally {
             fclose($stream);
