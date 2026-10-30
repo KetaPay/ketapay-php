@@ -44,7 +44,7 @@ final class ContractTest extends TestCase
             'title' => 'Company website',
             'description' => 'Five-page marketing site with blog, built on Next.js.',
             'images' => [['url' => 'https://cdn.example.com/1.jpg']],
-            'attachments' => [['name' => 'Brief.pdf', 'file' => self::IDS['file']]],
+            'attachments' => [['name' => 'Brief.pdf', 'url' => 'https://cdn.example.com/brief.pdf']],
             'milestones' => [
                 ['title' => 'Design', 'amount' => 40_000_000],
                 ['title' => 'Build', 'amount' => 110_000_000],

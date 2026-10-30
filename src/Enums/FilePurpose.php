@@ -13,7 +13,6 @@ namespace KetaPay\Enums;
  */
 final class FilePurpose
 {
-    public const AGREEMENT = 'agreement';
     public const DELIVERY = 'delivery';
     public const DISPUTE_EVIDENCE = 'dispute_evidence';
 }

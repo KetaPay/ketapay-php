@@ -13,7 +13,7 @@ namespace KetaPay\Models;
  * @property-read string $object
  * @property-read string $dispute_id
  * @property-read string $submitted_by
- * @property-read string $statement
+ * @property-read string|null $statement Null for a file the customer added in the KetaPay app, which comes without one
  * @property-read list<File> $files
  * @property-read string $created_at
  */

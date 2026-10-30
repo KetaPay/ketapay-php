@@ -23,9 +23,7 @@ final class Served
     private const NOT_SERVED_YET = [
         'bank_transfer',
         'release_code',
-        'disputes',
         'chargebacks',
-        'files',
         'payout_accounts',
         'simulate',
         'milestone_payout', // always null for now

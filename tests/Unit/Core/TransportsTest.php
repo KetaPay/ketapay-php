@@ -66,9 +66,9 @@ final class TransportsTest extends TestCase
     public function testUpload(\Closure $transport): void
     {
         $bytes = random_bytes(4096);
-        $echo = self::echoed(self::local($transport(), '/echo')->files->create(['file' => $bytes, 'filename' => 'blob "1".bin', 'purpose' => 'agreement', 'contentType' => 'image/png']));
+        $echo = self::echoed(self::local($transport(), '/echo')->files->create(['file' => $bytes, 'filename' => 'blob "1".bin', 'purpose' => 'delivery', 'contentType' => 'image/png']));
         self::assertStringStartsWith('multipart/form-data; boundary=ketapay-', $echo['headers']['content-type'] ?? '');
-        self::assertSame('agreement', $echo['form']['purpose'] ?? null);
+        self::assertSame('delivery', $echo['form']['purpose'] ?? null);
         $file = $echo['files']['file'] ?? null;
         self::assertNotNull($file);
         self::assertSame('blob %221%22.bin', $file['name']);
