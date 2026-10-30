@@ -85,7 +85,6 @@ final class ContractTest extends TestCase
         $k->escrows->milestones->release(self::IDS['escrow'], self::IDS['milestone'], [], self::CUSTOMER);
         $k->escrows->milestones->release(self::IDS['escrow'], self::IDS['milestone'], ['release_code' => '731045']);
         $k->escrows->milestones->releaseCode(self::IDS['escrow'], self::IDS['milestone'], self::CUSTOMER);
-        $k->escrows->cancel(self::IDS['escrow'], ['reason' => 'Buyer changed their mind'], self::CUSTOMER);
         $k->checkoutSessions->cancel(self::IDS['session']);
         self::assertSame('flag', $k->escrows->flag(self::IDS['escrow'], ['reason' => 'banned_seller'])->object);
     }

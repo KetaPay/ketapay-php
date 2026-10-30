@@ -60,7 +60,9 @@ final class CatalogueCoverageTest extends TestCase
     #[TestDox('[SPEC-006] has a tagged test for every scenario in the catalogue')]
     public function testEveryScenarioTagged(): void
     {
-        $missing = array_diff_key(self::catalogue(), self::tagged());
+        // A retired row keeps its ID (never reused) but needs no test
+        $live = array_filter(self::catalogue(), static fn(string $what): bool => !str_contains($what, ': retired'));
+        $missing = array_diff_key($live, self::tagged());
         $list = implode('; ', array_map(static fn(string $id, string $what): string => "$id ($what)", array_keys($missing), $missing));
         self::assertSame([], array_keys($missing), "Write tests tagged with: $list");
     }

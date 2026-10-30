@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: b4bdbda85a60cf70fe0b819e780481c9945ece03e3fbcc25a113b22aa254d1d5 -->
+<!-- sha256: 5d4676613f93dd9422c564e54b691e405450cc7d167b95aa51a9d83f1508bd1a -->
 
 # KetaPay SDK test catalogue
 
@@ -137,7 +137,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-005 | e2e | Seller delivers, buyer releases: the milestone is `released` with a payout, and `milestone.delivered` and `milestone.released` events exist |
 | E2E-006 | e2e | In-person release with the buyer's release code works; a wrong code is refused |
 | E2E-007 | e2e | Auto-release (simulated) releases a delivered milestone |
-| E2E-008 | e2e | The buyer cancels before delivery: the escrow is `refunded` and `escrow.refunded` exists |
+| E2E-008 | e2e | retired: escrows have no cancel call (a paid escrow ends through a dispute, E2E-009) |
 | E2E-009 | e2e | Dispute opened, evidence uploaded with a file, seller concedes: dispute `resolved`, money refunded |
 | E2E-010 | e2e | A dispute KetaPay resolves (simulated partial refund) splits the money and records `dispute.resolved` |
 | E2E-011 | e2e | A lost chargeback (simulated) closes with `lost` and records `chargeback.closed` |

@@ -139,7 +139,7 @@ final class HttpClientTest extends TestCase
         };
         $t = new MockTransport(['body' => []]);
         self::client($t, ['logLevel' => 'debug', 'logger' => $logger])
-            ->escrows->cancel('e1', ['reason' => 'secret reason'], ['customerToken' => 'ctk_test_9']);
+            ->disputes->create('e1', ['reason' => 'damaged', 'description' => 'secret reason'], ['customerToken' => 'ctk_test_9']);
         self::assertNotEmpty($logged);
         self::assertSame('debug', $logged[0][0]);
         self::assertDoesNotMatchRegularExpression('/sk_test_123|ctk_test_9|secret reason/', json_encode($logged, JSON_THROW_ON_ERROR));
