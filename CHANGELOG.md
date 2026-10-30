@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0-beta.4](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.3...v0.1.0-beta.4) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **escrows:** remove escrows->cancel, following the spec ([#22](https://github.com/KetaPay/ketapay-php/issues/22))
+
+### Features
+
+* **disputes:** follow the spec and serve disputes in e2e ([#21](https://github.com/KetaPay/ketapay-php/issues/21)) ([3fc9afb](https://github.com/KetaPay/ketapay-php/commit/3fc9afbdbb5825f4743943137d848be4bb62aaea))
+* **escrows:** remove escrows-&gt;cancel, following the spec ([#22](https://github.com/KetaPay/ketapay-php/issues/22)) ([5cf42de](https://github.com/KetaPay/ketapay-php/commit/5cf42de7abfaeb0a15eca31f17182f93e5fe4964))
+* **files:** follow the spec's file changes and serve files in e2e ([#20](https://github.com/KetaPay/ketapay-php/issues/20)) ([673cccf](https://github.com/KetaPay/ketapay-php/commit/673cccfd59e0e77b5d8189ab1e2a7c0cfb62a947))
+
 ## [0.1.0-beta.3](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.2...v0.1.0-beta.3) (2026-10-25)
 
 
