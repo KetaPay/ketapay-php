@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 84cd7d7246718a16508d82b59986c7a4323f2d1bf60dc64f5021bc16b9a14136
+# sha256: 6cb665624213a15df8620ee9b93da57c80225c611cdde37b42ffefe99668d54d
 
 openapi: 3.1.0
 info:
@@ -198,10 +198,10 @@ tags:
       need the right customer's proof.
   - name: Disputes
     description: |
-      Either side can open a dispute, on KetaPay's pages or through your UI: the buyer when
-      something wasn't delivered as agreed, the seller when the buyer won't release or respond.
-      KetaPay runs it end to end and decides from the evidence both sides submit. An escrow can
-      have several disputes over its life, one per milestone at a time.
+      Either side can open a dispute through your UI: the buyer when something wasn't delivered
+      as agreed, the seller when the buyer won't release or respond. KetaPay runs it end to end
+      and decides from the evidence both sides submit. An escrow can have several disputes over
+      its life, one open at a time: opening one freezes the whole escrow.
 
       **Settling without KetaPay.** While a dispute is open, either side can back down: the
       buyer can release, the seller can refund (`POST /disputes/{id}/concede`), and whoever
@@ -209,9 +209,9 @@ tags:
       against a party.
 
       **Evidence.** The buyer and the seller each submit statements and files (photos, videos,
-      documents, chat screenshots), either in the dispute room at the dispute's `url` or
-      through your UI: upload each file with `POST /files`, then submit them with
-      `POST /disputes/{id}/evidence`. When KetaPay needs more from someone, the dispute's
+      documents, chat screenshots) through your UI: upload each file with `POST /files`, then
+      submit them with `POST /disputes/{id}/evidence`. Files they add in the KetaPay app are
+      listed too, without a statement. When KetaPay needs more from someone, the dispute's
       `awaiting_evidence_from` and `evidence_due_at` say who and by when, and you get
       `dispute.evidence_requested` so you can prompt them in your app. Evidence is only visible
       to the two parties and KetaPay; your key alone cannot read it.
@@ -914,10 +914,11 @@ paths:
         - **The seller**, when they delivered but the buyer won't release or respond
           (`buyer_unresponsive`). This matters most where `auto_release_hours` is null.
 
-        The affected milestones freeze: their auto-release pauses and the normal release and
-        cancel calls are refused until the dispute ends. Only one dispute per milestone can be
-        open at a time. Evidence and the discussion happen in the dispute room at the returned
-        `url`, or through `POST /disputes/{id}/evidence`. Sends `dispute.opened`.
+        A milestone dispute needs that milestone delivered. The whole escrow freezes: auto-release
+        pauses and the normal release and cancel calls are refused until the dispute ends, so an
+        escrow has one open dispute at a time (a second one is `dispute_open`). Evidence goes
+        through `POST /disputes/{id}/evidence`; `files` here is the first of it. Sends
+        `dispute.opened`.
       x-required-scope: escrows:act
       security:
         - secretKey: []
@@ -1019,11 +1020,14 @@ paths:
         Ends the dispute in the other side's favour, the same rule as in the KetaPay app: a
         party can only ever give money away, never take it.
 
-        - **Buyer's token:** releases the disputed milestones to the seller.
-        - **Seller's token:** refunds the disputed milestones to the buyer.
+        - **Buyer's token:** releases the disputed milestone to the seller (the whole escrow for an
+          escrow dispute).
+        - **Seller's token:** refunds everything still held to the buyer. On a milestone dispute
+          the remaining milestones are cancelled too, and the escrow ends `refunded`.
 
-        Whoever opened the dispute can concede too. Sends `dispute.resolved`, then the money
-        events.
+        Whoever opened the dispute can concede too. Only while it is `open`: once KetaPay is
+        deciding it is `escrow_under_review`, and once it has ended `dispute_not_open`. Sends
+        `dispute.resolved`, then the money events.
       x-required-scope: escrows:act
       security:
         - secretKey: []
@@ -1055,8 +1059,8 @@ paths:
         - Disputes
       summary: Withdraw a dispute
       description: |
-        Only whoever opened it, with their customer token. No money moves; the deal carries on
-        where it was, and paused auto-release timers restart. Sends `dispute.resolved` with
+        Only whoever opened it, with their customer token, while it is `open`. No money moves; the
+        deal carries on where it was, and paused auto-release timers restart. Sends `dispute.resolved` with
         `outcome` `withdrawn`.
       x-required-scope: escrows:act
       security:
@@ -1090,7 +1094,8 @@ paths:
       summary: Submit evidence
       description: |
         Adds a statement and files to an open dispute, for the buyer or the seller whose customer
-        token you send. Each side can submit as many times as they need until KetaPay decides.
+        token you send. Each side can submit as many times as they need until the dispute ends
+        (`dispute_not_open` after).
         Sends `dispute.evidence_submitted`.
       x-required-scope: escrows:act
       security:
@@ -1134,7 +1139,10 @@ paths:
       tags:
         - Disputes
       summary: List evidence
-      description: Everything both sides have submitted, oldest first. Needs the buyer's or the seller's customer token.
+      description: |
+        Everything both sides have submitted, oldest first, including files they added in the
+        KetaPay app (each on its own, with a null `statement`). Needs the buyer's or the seller's
+        customer token.
       x-required-scope: escrows:act
       security:
         - secretKey: []
@@ -2317,7 +2325,7 @@ components:
               param: null
               request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
     StateConflict:
-      description: Not allowed in the current state (`escrow_state_invalid`, `milestone_not_current`, `milestone_not_delivered`, `dispute_open`, `escrow_under_review`, `checkout_session_not_open`, `release_code_locked`), or the idempotency key was reused
+      description: Not allowed in the current state (`escrow_state_invalid`, `milestone_not_current`, `milestone_not_delivered`, `dispute_open`, `dispute_not_open`, `escrow_under_review`, `checkout_session_not_open`, `release_code_locked`), or the idempotency key was reused
       content:
         application/json:
           schema:
@@ -2555,7 +2563,7 @@ components:
                 `commission_not_allowed`,
                 `release_settings_invalid`, `verification_required`, `checkout_session_not_open`,
                 `escrow_already_flagged`, `escrow_state_invalid`, `milestone_not_current`,
-                `milestone_not_delivered`, `dispute_open`, `escrow_under_review`,
+                `milestone_not_delivered`, `dispute_open`, `dispute_not_open`, `escrow_under_review`,
                 `release_code_invalid`, `release_code_locked`, `code_invalid`, `code_expired`,
                 `too_many_attempts`, `customer_token_required`, `customer_token_expired`,
                 `customer_not_allowed`, `bank_account_not_found`, `file_too_large`,
@@ -3701,10 +3709,14 @@ components:
             - type: 'null'
           description: For `refunded` and `partially_refunded`, the amount returned to the buyer
         url:
-          type: string
+          type:
+            - string
+            - 'null'
           format: uri
-          description: The dispute room, where the buyer and seller add evidence and talk to KetaPay
-          example: https://app.ketapay.com/disputes/8e2f4a6c-1d3b-4c7e-9a5f-0b2d4f6a8c13
+          description: |
+            A KetaPay page for the dispute. Always null for now: KetaPay runs the dispute and the
+            buyer and seller act through your UI (concede, withdraw, evidence).
+          example: null
         awaiting_evidence_from:
           type:
             - string
@@ -3776,7 +3788,10 @@ components:
             - buyer
             - seller
         statement:
-          type: string
+          type:
+            - string
+            - 'null'
+          description: Null for a file the customer added in the KetaPay app, which comes without one
         files:
           type: array
           items:
