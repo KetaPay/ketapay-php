@@ -46,7 +46,6 @@ final class SpecCoverageTest extends TestCase
             // Escrows and milestones
             'listEscrows' => fn(KetaPay $k) => $k->escrows->list(),
             'getEscrow' => fn(KetaPay $k) => $k->escrows->retrieve($id),
-            'cancelEscrow' => fn(KetaPay $k) => $k->escrows->cancel($id, null, $t),
             'flagEscrow' => fn(KetaPay $k) => $k->escrows->flag($id, ['reason' => 'banned_seller']),
             'deliverMilestone' => fn(KetaPay $k) => $k->escrows->milestones->deliver($id, $m, [], $t),
             'releaseMilestone' => fn(KetaPay $k) => $k->escrows->milestones->release($id, $m, ['release_code' => '123456']),

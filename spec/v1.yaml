@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 08a0bf7bdabe9edf6b3767181e4cada87e165eeea86f04a0147548e54b7c0864
+# sha256: 8944f373d09c20f4cd29bd9ab39b3d2b2c91d5d464667cd0fe8883edf36a389e
 
 openapi: 3.1.0
 info:
@@ -59,7 +59,7 @@ info:
 
     **Your platform is never a party to your customers' escrows.** Your secret key lets you
     create checkout sessions and read your escrows, but never move escrowed money on its own. Paying,
-    delivering, releasing, cancelling, reporting a problem and adding a payout account are
+    delivering, releasing, reporting a problem and adding a payout account are
     your customer's decisions, so those calls need proof from that customer as well as your
     key:
 
@@ -194,8 +194,8 @@ tags:
   - name: Escrows
     description: |
       An escrow holds the buyer's money until its milestones are released. Your key alone can
-      read escrows and flag one for KetaPay to review. Delivering, releasing and cancelling also
-      need the right customer's proof.
+      read escrows and flag one for KetaPay to review. Delivering and releasing also need the
+      right customer's proof.
   - name: Disputes
     description: |
       Either side can open a dispute, on KetaPay's pages or through your UI: the buyer when
@@ -233,8 +233,8 @@ tags:
       sent as soon as they confirm one. Each milestone's `payout` shows where its money is.
   - name: Refunds
     description: |
-      Money returned to the buyer (a cancellation, a seller conceding, or a dispute KetaPay
-      decided for the buyer) goes back the way it came: to the card, or to the bank account the
+      Money returned to the buyer (a cancelled checkout, a seller conceding, or a dispute
+      KetaPay decided for the buyer) goes back the way it came: to the card, or to the bank account the
       transfer came from. Card refunds take 5 to 10 working days to show, depending on the
       buyer's bank.
 
@@ -811,53 +811,6 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '429':
           $ref: '#/components/responses/RateLimited'
-  /escrows/{id}/cancel:
-    post:
-      operationId: cancelEscrow
-      tags:
-        - Escrows
-      summary: Cancel and refund the buyer
-      description: |
-        Refunds the buyer every milestone not yet released; released milestones stay paid. Money
-        only ever goes back to the account that paid. KetaPay's buyer fee and VAT are not
-        refunded once the escrow is funded, the same rule as in the KetaPay app.
-
-        - **Seller's token:** any time (the seller gives up the rest of the deal).
-        - **Buyer's token:** only before any milestone is delivered or released. After that the
-          buyer reports a problem instead.
-
-        Refused while a dispute is open (the seller can refund through
-        `POST /disputes/{id}/concede`). Sends `escrow.refunded`, or `escrow.completed` if some
-        milestones were already released.
-      x-required-scope: escrows:act
-      security:
-        - secretKey: []
-          customerToken: []
-      parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CancelEscrowRequest'
-            example:
-              reason: Project cancelled by agreement
-      responses:
-        '200':
-          $ref: '#/components/responses/EscrowUpdated'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/NotParty'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
-        '429':
-          $ref: '#/components/responses/RateLimited'
   /escrows/{id}/flag:
     post:
       operationId: flagEscrow
@@ -912,8 +865,8 @@ paths:
         - **The seller**, when they delivered but the buyer won't release or respond
           (`buyer_unresponsive`). This matters most where `auto_release_hours` is null.
 
-        The affected milestones freeze: their auto-release pauses and the normal release and
-        cancel calls are refused until the dispute ends. Only one dispute per milestone can be
+        The affected milestones freeze: their auto-release pauses and the normal deliver and
+        release calls are refused until the dispute ends. Only one dispute per milestone can be
         open at a time. Evidence and the discussion happen in the dispute room at the returned
         `url`, or through `POST /disputes/{id}/evidence`. Sends `dispute.opened`.
       x-required-scope: escrows:act
@@ -1852,8 +1805,7 @@ paths:
         | `deliver` | Seller | `milestone_id` |
         | `release` | Buyer | `milestone_id` |
         | `auto_release` | The clock: skips to the end of the auto-release window | `milestone_id` |
-        | `cancel` | `actor` (`buyer` or `seller`) | |
-        | `open_dispute` | `actor` | `milestone_id` optional, `reason` |
+        | `open_dispute` | `actor` (`buyer` or `seller`) | `milestone_id` optional, `reason` |
         | `request_evidence` | KetaPay | `from` (`buyer`, `seller` or `both`) |
         | `resolve_dispute` | KetaPay | `outcome`, `refunded_amount` for a partial refund |
         | `open_chargeback` | The buyer's card bank | `amount` optional |
@@ -3500,14 +3452,6 @@ components:
           type: string
           pattern: ^\d{6}$
           example: '731045'
-    CancelEscrowRequest:
-      type: object
-      properties:
-        reason:
-          type:
-            - string
-            - 'null'
-          maxLength: 500
     CreateFlagRequest:
       type: object
       required:
@@ -4154,7 +4098,6 @@ components:
             - deliver
             - release
             - auto_release
-            - cancel
             - open_dispute
             - request_evidence
             - resolve_dispute

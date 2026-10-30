@@ -10,7 +10,6 @@ namespace KetaPay\Types;
  * Request parameter shapes, for static analysis and autocompletion (PHPStan, Psalm, PhpStorm). The SDK
  * sends arrays as given and KetaPay validates them, so these only help you catch mistakes earlier.
  *
- * @phpstan-type CancelEscrowRequest array{reason?: string|null}
  * @phpstan-type CommissionInput array{rate_bps: int, min_amount?: int, max_amount?: int|null}
  * @phpstan-type CreateCheckoutSessionRequest array{amount: int, currency?: 'NGN', category?: 'goods'|'services'|'property'|'vehicle'|'digital'|'other', title: string, description: string, images?: list<array{file: string, url?: string, alt?: string|null}|array{file?: string, url: string, alt?: string|null}>, attachments?: list<array{name?: string, file: string, url?: string}|array{name?: string, file?: string, url: string}>, url?: string|null, milestones?: list<MilestoneInput>, buyer: PartyInput, seller?: PartyInput, release?: array{method?: 'buyer_confirms'|'release_code', auto_release_hours?: int|null}, commission?: CommissionInput|null, expires_at?: string, return_url?: string, cancel_url?: string|null, external_reference?: string|null, metadata?: array<string, string>}
  * @phpstan-type CreateCustomerSessionRequest array{email: string}|array{phone: string}
@@ -26,7 +25,7 @@ namespace KetaPay\Types;
  * @phpstan-type MilestoneInput array{title: string, description?: string|null, amount: int, due_date?: string|null}
  * @phpstan-type PartyInput array{email: string, phone?: string, name?: string|null}|array{email?: string, phone: string, name?: string|null}
  * @phpstan-type ReleaseMilestoneRequest array{release_code?: string}
- * @phpstan-type SimulateRequest array{action: 'deliver'|'release'|'auto_release'|'cancel'|'open_dispute'|'request_evidence'|'resolve_dispute'|'open_chargeback'|'close_chargeback'|'fail_payout'|'fail_refund', milestone_id?: string|null, actor?: 'buyer'|'seller', reason?: 'not_received'|'not_as_agreed'|'damaged'|'incomplete'|'buyer_unresponsive'|'other', from?: 'buyer'|'seller'|'both', outcome?: 'released'|'refunded'|'partially_refunded', refunded_amount?: int, amount?: int, chargeback_status?: 'won'|'lost'}
+ * @phpstan-type SimulateRequest array{action: 'deliver'|'release'|'auto_release'|'open_dispute'|'request_evidence'|'resolve_dispute'|'open_chargeback'|'close_chargeback'|'fail_payout'|'fail_refund', milestone_id?: string|null, actor?: 'buyer'|'seller', reason?: 'not_received'|'not_as_agreed'|'damaged'|'incomplete'|'buyer_unresponsive'|'other', from?: 'buyer'|'seller'|'both', outcome?: 'released'|'refunded'|'partially_refunded', refunded_amount?: int, amount?: int, chargeback_status?: 'won'|'lost'}
  * @phpstan-type SubmitEvidenceRequest array{statement: string, files?: list<string>}
  * @phpstan-type UpdateWebhookEndpointRequest array{url?: string, enabled_events?: list<string>, description?: string|null, status?: 'enabled'|'disabled'}
  */
