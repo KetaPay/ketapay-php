@@ -12,8 +12,9 @@ use KetaPay\Models\File;
 final class Files extends AbstractResource
 {
     /**
-     * Uploads a file for checkout attachments (`agreement`, your key alone), milestone deliveries
-     * (`delivery`, seller's token) or dispute evidence (`dispute_evidence`, buyer's or seller's token).
+     * Uploads a file your customer gave you, for a milestone delivery (`delivery`, the seller's token)
+     * or dispute evidence (`dispute_evidence`, the buyer's or seller's token). Checkout images and
+     * attachments take links instead: KetaPay copies them.
      *
      * `file` is the contents as a string, an open stream, or an `SplFileInfo` for a file on disk.
      *

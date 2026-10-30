@@ -63,7 +63,7 @@ final class SpecCoverageTest extends TestCase
             'getChargeback' => fn(KetaPay $k) => $k->chargebacks->retrieve($id),
             'submitChargebackEvidence' => fn(KetaPay $k) => $k->chargebacks->submitEvidence($id, ['statement' => 'Courier receipt'], $t),
             // Files
-            'uploadFile' => fn(KetaPay $k) => $k->files->create(['file' => "\x01", 'filename' => 'a.pdf', 'purpose' => 'agreement']),
+            'uploadFile' => fn(KetaPay $k) => $k->files->create(['file' => "\x01", 'filename' => 'a.pdf', 'purpose' => 'delivery']),
             // Payouts
             'listBanks' => fn(KetaPay $k) => $k->banks->list(),
             'createPayoutAccount' => fn(KetaPay $k) => $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0123456789'], $t),

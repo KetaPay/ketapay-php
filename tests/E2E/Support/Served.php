@@ -27,7 +27,6 @@ final class Served
         'escrow_cancel',
         'disputes',
         'chargebacks',
-        'files',
         'payout_accounts',
         'simulate',
         'milestone_payout', // always null for now
