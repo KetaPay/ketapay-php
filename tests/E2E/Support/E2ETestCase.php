@@ -69,7 +69,6 @@ abstract class E2ETestCase extends TestCase
         /** @var CreateCheckoutSessionRequest $params the overrides are valid fields, or deliberately invalid ones (E2E-022) */
         $params = [
             'amount' => 1_500_000,
-            'category' => 'services',
             'title' => 'E2E website build',
             'description' => 'Three-page site, built by the e2e suite to test escrow flows.',
             'milestones' => [

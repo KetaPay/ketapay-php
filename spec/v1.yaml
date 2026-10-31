@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: d5bbe9f8bdb0682ead4f0bfa6417cb9164c543df86f1ae6202a3b5e1ce8e6d0b
+# sha256: 5b6c2d12145370c5789f4154fe80e52d0cf7e236871898b5ead64729b397ca36
 
 openapi: 3.1.0
 info:
@@ -348,7 +348,6 @@ paths:
                 summary: Services in three milestones
                 value:
                   amount: 150000000
-                  category: services
                   title: Company website
                   description: Five-page marketing site with blog, built on Next.js. Brief attached.
                   attachments:
@@ -384,7 +383,6 @@ paths:
                 summary: One-off sale handed over in person
                 value:
                   amount: 45000000
-                  category: goods
                   title: iPhone 15 Pro Max 256GB
                   description: Used, 91% battery, no scratches, Face ID works. Comes with box and cable.
                   images:
@@ -2657,17 +2655,6 @@ components:
             request_id:
               type: string
               example: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
-    Category:
-      type: string
-      enum:
-        - goods
-        - services
-        - property
-        - vehicle
-        - digital
-        - other
-      default: other
-      description: What kind of deal this is. KetaPay uses it for risk checks and dispute handling.
     Release:
       type: object
       properties:
@@ -2806,8 +2793,6 @@ components:
           enum:
             - NGN
           default: NGN
-        category:
-          $ref: '#/components/schemas/Category'
         title:
           type: string
           minLength: 1
@@ -2950,7 +2935,6 @@ components:
         - amount
         - currency
         - fees
-        - category
         - title
         - description
         - images
@@ -2990,8 +2974,6 @@ components:
           const: NGN
         fees:
           $ref: '#/components/schemas/Fees'
-        category:
-          $ref: '#/components/schemas/Category'
         title:
           type: string
         description:
@@ -3449,7 +3431,6 @@ components:
         - amount
         - currency
         - fees
-        - category
         - title
         - description
         - images
@@ -3486,8 +3467,6 @@ components:
           const: NGN
         fees:
           $ref: '#/components/schemas/Fees'
-        category:
-          $ref: '#/components/schemas/Category'
         title:
           type: string
         description:
@@ -4498,7 +4477,6 @@ components:
           seller_fee: 2250000
           commission: 15000000
           seller_payout: 132750000
-        category: services
         title: Company website
         description: Five-page marketing site with blog, built on Next.js. Brief attached.
         images: []
@@ -4561,7 +4539,6 @@ components:
           seller_fee: 2250000
           commission: 15000000
           seller_payout: 132750000
-        category: services
         title: Company website
         description: Five-page marketing site with blog, built on Next.js. Brief attached.
         images: []
