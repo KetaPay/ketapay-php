@@ -171,7 +171,7 @@ try {
         PHP);
     file_put_contents("$dir/app/misuse.php", "<?php\n\ndeclare(strict_types=1);\n\nfunction misuse(KetaPay\\KetaPay \$k): int\n{\n    return \$k->escrows->retrieve('e1')->status;\n}\n");
     // Request parameters are typed too: a missing required field, an unknown enum value, a wrong value type.
-    file_put_contents("$dir/app/bad-params.php", "<?php\n\ndeclare(strict_types=1);\n\nfunction badParams(KetaPay\\KetaPay \$k): void\n{\n    \$k->checkoutSessions->create(['amount' => 1, 'description' => 'twenty characters long', 'buyer' => ['email' => 'a@b.co'], 'seller' => ['email' => 'c@d.co']]);\n    \$k->checkoutSessions->create(['amount' => 1, 'title' => 't', 'description' => 'twenty characters long', 'buyer' => ['email' => 'a@b.co'], 'seller' => ['email' => 'c@d.co'], 'category' => 'cars']);\n    \$k->escrows->list(['limit' => 'many']);\n}\n");
+    file_put_contents("$dir/app/bad-params.php", "<?php\n\ndeclare(strict_types=1);\n\nfunction badParams(KetaPay\\KetaPay \$k): void\n{\n    \$k->checkoutSessions->create(['amount' => 1, 'description' => 'twenty characters long', 'buyer' => ['email' => 'a@b.co'], 'seller' => ['email' => 'c@d.co']]);\n    \$k->checkoutSessions->create(['amount' => 1, 'title' => 't', 'description' => 'twenty characters long', 'buyer' => ['email' => 'a@b.co'], 'seller' => ['email' => 'c@d.co'], 'release' => ['method' => 'whenever']]);\n    \$k->escrows->list(['limit' => 'many']);\n}\n");
     $phpstan = "$root/vendor/bin/phpstan analyse --no-progress --level=max --autoload-file=vendor/autoload.php --memory-limit=1G";
     run("$phpstan typed.php", "$dir/app");
     $misuse = '';
@@ -187,7 +187,7 @@ try {
     } catch (RuntimeException $e) {
         $badParams = $e->getMessage();
     }
-    check(substr_count($badParams, 'expects array{') >= 3, "PHPStan should reject a missing field, an unknown category and a wrong filter type:\n$badParams");
+    check(substr_count($badParams, 'expects array{') >= 3, "PHPStan should reject a missing field, an unknown release method and a wrong filter type:\n$badParams");
     echo "types ok (PHPStan level max)\n";
 
     echo "smoke test passed for ketapay/ketapay-php $version on PHP " . PHP_VERSION . "\n";
