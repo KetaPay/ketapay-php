@@ -22,7 +22,6 @@ final class Served
 {
     private const NOT_SERVED_YET = [
         'bank_transfer',
-        'release_code',
         'chargebacks',
         'payout_accounts',
         'simulate',
