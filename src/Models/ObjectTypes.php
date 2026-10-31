@@ -23,6 +23,7 @@ final class ObjectTypes
         'file' => File::class,
         'flag' => Flag::class,
         'milestone' => Milestone::class,
+        'money_action' => MoneyAction::class,
         'payout' => Payout::class,
         'payout_account' => PayoutAccount::class,
         'refund' => Refund::class,

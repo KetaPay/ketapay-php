@@ -55,6 +55,28 @@ final class RequestBodiesTest extends TestCase
         self::assertSame(['note' => 'Shipped with GIG'], $t->lastJson());
     }
 
+    #[TestDox('[REQ-011] refunds with the reason in the body and an idempotency key, and no customer token')]
+    public function testRefundWithKeyAlone(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'money_action']]);
+        self::client($t)->escrows->refund('e1', ['reason' => 'Out of stock, agreed by phone']);
+        self::assertSame(['reason' => 'Out of stock, agreed by phone'], $t->lastJson());
+        self::assertArrayHasKey('Idempotency-Key', $t->last()->headers);
+        self::assertArrayNotHasKey('KetaPay-Customer-Token', $t->last()->headers);
+    }
+
+    #[TestDox('[REQ-012] escalates a dispute with the customer token and an idempotency key, and no body')]
+    public function testEscalate(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'dispute']]);
+        self::client($t)->disputes->escalate('d1', ['customerToken' => 'tok']);
+        self::assertStringContainsString('/disputes/d1/escalate', $t->last()->url);
+        self::assertSame('POST', $t->last()->method);
+        self::assertEmpty($t->last()->body);
+        self::assertSame('tok', $t->last()->headers['KetaPay-Customer-Token']);
+        self::assertArrayHasKey('Idempotency-Key', $t->last()->headers);
+    }
+
     #[TestDox('[REQ-008] creates a webhook endpoint from a URL alone, leaving the events to the API default')]
     public function testWebhookEndpointDefaultEvents(): void
     {

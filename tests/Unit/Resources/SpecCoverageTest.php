@@ -46,6 +46,8 @@ final class SpecCoverageTest extends TestCase
             // Escrows and milestones
             'listEscrows' => fn(KetaPay $k) => $k->escrows->list(),
             'getEscrow' => fn(KetaPay $k) => $k->escrows->retrieve($id),
+            'refundEscrow' => fn(KetaPay $k) => $k->escrows->refund($id, ['reason' => 'Out of stock, agreed by phone']),
+            'getMoneyAction' => fn(KetaPay $k) => $k->moneyActions->retrieve($id),
             'flagEscrow' => fn(KetaPay $k) => $k->escrows->flag($id, ['reason' => 'banned_seller']),
             'deliverMilestone' => fn(KetaPay $k) => $k->escrows->milestones->deliver($id, $m, [], $t),
             'releaseMilestone' => fn(KetaPay $k) => $k->escrows->milestones->release($id, $m, ['release_code' => '123456']),
@@ -55,6 +57,7 @@ final class SpecCoverageTest extends TestCase
             'listEscrowDisputes' => fn(KetaPay $k) => $k->disputes->listForEscrow($id),
             'getDispute' => fn(KetaPay $k) => $k->disputes->retrieve($id),
             'concedeDispute' => fn(KetaPay $k) => $k->disputes->concede($id, $t),
+            'escalateDispute' => fn(KetaPay $k) => $k->disputes->escalate($id, $t),
             'withdrawDispute' => fn(KetaPay $k) => $k->disputes->withdraw($id, $t),
             'submitDisputeEvidence' => fn(KetaPay $k) => $k->disputes->submitEvidence($id, ['statement' => 'Photos attached here'], $t),
             'listDisputeEvidence' => fn(KetaPay $k) => $k->disputes->listEvidence($id, $t),

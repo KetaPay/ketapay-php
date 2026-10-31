@@ -21,8 +21,8 @@ namespace KetaPay\Models;
  * @property-read string|null $resolved_by Who ended it. A party can only end it against themselves (conceding) or by withdrawing their own dispute.
  * @property-read int|null $refunded_amount For `refunded` and `partially_refunded`, the amount returned to the buyer
  * @property-read string|null $url A KetaPay page for the dispute. Always null for now: KetaPay runs the dispute and the buyer and seller act through your UI (concede, withdraw, evidence).
- * @property-read string|null $awaiting_evidence_from Who KetaPay is waiting on for evidence, if anyone
- * @property-read string|null $evidence_due_at Deadline for the evidence KetaPay asked for
+ * @property-read string|null $awaiting_evidence_from Who KetaPay is waiting on for evidence. `both` until `evidence_due_at` passes or the dispute ends, then null
+ * @property-read string|null $evidence_due_at When the evidence window ends, 72 hours after opening. It moves no money, and late evidence is still taken
  * @property-read int $evidence_count How many evidence submissions both sides have made
  * @property-read string $opened_at
  * @property-read string|null $resolved_at

@@ -4,7 +4,7 @@
 #
 # Settings come from Infisical (project ketapay-sdks, shared by every KetaPay SDK, environment staging):
 #   KETAPAY_E2E_BASE_URL, KETAPAY_E2E_SECRET_KEY (required)
-#   KETAPAY_E2E_OTHER_SECRET_KEY, KETAPAY_E2E_LIVE_SECRET_KEY, KETAPAY_E2E_WEBHOOK_URL (optional, enable more tests)
+#   KETAPAY_E2E_OTHER_SECRET_KEY, KETAPAY_E2E_LIVE_SECRET_KEY, KETAPAY_E2E_RESTRICTED_SECRET_KEY, KETAPAY_E2E_WEBHOOK_URL (optional, enable more tests)
 # Until the required ones exist, the job reports "not configured" and passes, unless `required` is set
 # (the publish workflow sets it for stable releases).
 name: E2E

@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 4221aaf8346f0983ce45f8429e440864dbcd293fcfb4d992b5a7a37584bfea6e
+# sha256: 5c3c381f0014c4cf20e68718fe067ae3223a15e8100166cd63973e7fe966a65f
 
 openapi: 3.1.0
 info:
@@ -195,7 +195,8 @@ tags:
     description: |
       An escrow holds the buyer's money until its milestones are released. Your key alone can
       read escrows and flag one for KetaPay to review. Delivering and releasing also need the
-      right customer's proof.
+      right customer's proof. A key with `escrows:manage` can refund your own sales (see Money
+      actions).
   - name: Disputes
     description: |
       Either side can open a dispute through your UI: the buyer when something wasn't delivered
@@ -206,14 +207,17 @@ tags:
       **Settling without KetaPay.** While a dispute is open, either side can back down: the
       buyer can release, the seller can refund (`POST /disputes/{id}/concede`), and whoever
       opened it can withdraw it. Nobody can settle in their own favour; only KetaPay decides
-      against a party.
+      against a party. Either side can ask KetaPay to decide straight away
+      (`POST /disputes/{id}/escalate`), after which neither can settle it.
 
       **Evidence.** The buyer and the seller each submit statements and files (photos, videos,
       documents, chat screenshots) through your UI: upload each file with `POST /files`, then
       submit them with `POST /disputes/{id}/evidence`. Files they add in the KetaPay app are
-      listed too, without a statement. When KetaPay needs more from someone, the dispute's
-      `awaiting_evidence_from` and `evidence_due_at` say who and by when, and you get
-      `dispute.evidence_requested` so you can prompt them in your app. Evidence is only visible
+      listed too, without a statement. Both sides have 72 hours from when the dispute opens:
+      `awaiting_evidence_from` and `evidence_due_at` say who and by when, and KetaPay reminds
+      them a day before. The deadline moves no money and late evidence is still taken. When
+      KetaPay needs more from someone, you get `dispute.evidence_requested` so you can prompt
+      them in your app. Evidence is only visible
       to the two parties and KetaPay; your key alone cannot read it.
   - name: Payout accounts
     description: |
@@ -243,6 +247,11 @@ tags:
       buyer to withdraw it to a bank account they confirm with a one-time code (the same
       `Payout accounts` flow sellers use). Refunded money is never lost and never goes to anyone
       but the buyer. Each milestone's `refund` shows where its money is.
+  - name: Money actions
+    description: |
+      A business can move money on a deal itself, without a customer token, through a key with
+      the `escrows:manage` scope. Every such decision is a money action: KetaPay still moves the
+      money, and keeps a permanent record of what was done, by which key and why.
   - name: Chargebacks
     description: |
       A chargeback is when the buyer asks their card bank to reverse a card payment, outside
@@ -853,6 +862,77 @@ paths:
           $ref: '#/components/responses/IdempotencyConflict'
         '429':
           $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/refund:
+    post:
+      operationId: refundEscrow
+      tags:
+        - Money actions
+      summary: Refund an escrow
+      description: |
+        Refunds the buyer on a sale your business made itself, with your key alone. Everything
+        KetaPay still holds on the escrow goes back; milestones already released stay paid, and
+        the buyer's fee and its VAT are kept. Partial refunds aren't supported.
+
+        Needs a key with the `escrows:manage` scope, which is never added to an existing key and
+        has to be chosen when the key is made. Refused while the escrow has an open dispute
+        (`dispute_open`) or is under review (`escrow_under_review`). A sale between two of your
+        customers needs an approved platform (`platform_not_approved`) that KetaPay hasn't paused
+        (`rulings_paused`). Sends `escrow.refunded`.
+      x-required-scope: escrows:manage
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRefundRequest'
+            example:
+              reason: Out of stock, the customer agreed to a refund by phone.
+      responses:
+        '200':
+          description: Refunded. The money action is `executed`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoneyAction'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /money_actions/{id}:
+    get:
+      operationId: getMoneyAction
+      tags:
+        - Money actions
+      summary: Get a money action
+      x-required-scope: escrows:read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The money action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoneyAction'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /escrows/{id}/disputes:
     post:
       operationId: openDispute
@@ -991,6 +1071,41 @@ paths:
       responses:
         '200':
           description: The resolved dispute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /disputes/{id}/escalate:
+    post:
+      operationId: escalateDispute
+      tags:
+        - Disputes
+      summary: Ask KetaPay to decide
+      description: |
+        Hands an `open` dispute to KetaPay, for the buyer or the seller whose customer token you
+        send (or your key alone when your business is the seller). The status becomes
+        `under_review` and both sides are told. No money moves, and neither side can concede or
+        withdraw after this (`escrow_under_review`). Evidence is still welcome until it ends.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The dispute, now `under_review`
           content:
             application/json:
               schema:
@@ -2251,7 +2366,7 @@ components:
               param: null
               request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
     Forbidden:
-      description: The key lacks the scope, or the organisation can't do this yet (for example live keys before verification)
+      description: The key lacks the scope, or the organisation can't do this yet (for example live keys before verification, `platform_not_approved`, `rulings_paused`, `daily_limit_reached`)
       content:
         application/json:
           schema:
@@ -2277,7 +2392,7 @@ components:
               param: null
               request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
     StateConflict:
-      description: Not allowed in the current state (`escrow_state_invalid`, `milestone_not_current`, `milestone_not_delivered`, `dispute_open`, `dispute_not_open`, `escrow_under_review`, `checkout_session_not_open`, `release_code_locked`), or the idempotency key was reused
+      description: Not allowed in the current state (`escrow_state_invalid`, `milestone_not_current`, `milestone_not_delivered`, `dispute_open`, `dispute_not_open`, `escrow_under_review`, `checkout_session_not_open`, `release_code_locked`, `action_already_scheduled`), or the idempotency key was reused
       content:
         application/json:
           schema:
@@ -2521,6 +2636,8 @@ components:
                 `customer_not_allowed`, `bank_account_not_found`, `file_too_large`,
                 `file_type_not_allowed`, `file_not_usable`, `resource_not_found`,
                 `api_key_invalid`, `api_key_expired`, `missing_scope`, `live_mode_not_enabled`,
+                `platform_not_approved`, `rulings_paused`, `daily_limit_reached`,
+                `action_already_scheduled`,
                 `idempotency_key_missing`, `idempotency_key_reused`, `rate_limited`, `test_mode_only`,
                 `internal_error`. New codes may be added.
               example: parameter_invalid
@@ -2732,7 +2849,10 @@ components:
             - $ref: '#/components/schemas/PartyInput'
           description: |
             Who gets paid. Leave it out when you sell your own goods: your business is the seller,
-            by its name, and each release is paid into your KetaPay balance.
+            by its name, and each release is paid into your KetaPay balance. Naming a seller makes
+            this a sale between two of your customers, which needs an approved platform: live keys
+            are refused with `platform_not_approved` until KetaPay approves your business, and test
+            keys until you ask to be one.
         release:
           $ref: '#/components/schemas/Release'
         commission:
@@ -3532,6 +3652,92 @@ components:
         created_at:
           type: string
           format: date-time
+    CreateRefundRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: Why you are refunding. Kept with the record of who did it.
+    MoneyAction:
+      type: object
+      description: |
+        One decision a business made that moves money, and who made it. KetaPay moves the money and
+        keeps this record for good.
+      required:
+        - id
+        - object
+        - livemode
+        - action
+        - status
+        - amount
+        - escrow_id
+        - milestone_id
+        - dispute_id
+        - reason
+        - execute_after
+        - executed_at
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: money_action
+        livemode:
+          type: boolean
+        action:
+          type: string
+          enum:
+            - release
+            - refund
+            - ruling_release
+            - ruling_refund
+        status:
+          type: string
+          enum:
+            - scheduled
+            - executing
+            - executed
+            - cancelled
+            - failed
+          description: |
+            `scheduled` is waiting for `execute_after`, `executing` is moving the money. `executed`
+            is done. `cancelled` was overtaken or stopped before any money moved. `failed` didn't
+            move the money, and KetaPay is looking into it.
+        amount:
+          $ref: '#/components/schemas/Amount'
+        escrow_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        dispute_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        reason:
+          type: string
+        execute_after:
+          type: string
+          format: date-time
+          description: When the money moves. A refund moves at once
+        executed_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
     DisputeReason:
       type: string
       enum:
@@ -3670,13 +3876,13 @@ components:
             - seller
             - both
             - null
-          description: Who KetaPay is waiting on for evidence, if anyone
+          description: Who KetaPay is waiting on for evidence. `both` until `evidence_due_at` passes or the dispute ends, then null
         evidence_due_at:
           type:
             - string
             - 'null'
           format: date-time
-          description: Deadline for the evidence KetaPay asked for
+          description: When the evidence window ends, 72 hours after opening. It moves no money, and late evidence is still taken
         evidence_count:
           type: integer
           minimum: 0

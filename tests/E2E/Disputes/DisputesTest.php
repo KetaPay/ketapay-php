@@ -42,6 +42,22 @@ final class DisputesTest extends E2ETestCase
         self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'dispute.resolved')));
     }
 
+    #[TestDox('[E2E-030] an escalated dispute is under review and can no longer be settled')]
+    public function testEscalate(): void
+    {
+        self::requireServed('disputes');
+        ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
+        $k = self::ketapay();
+        $buyerToken = ['customerToken' => self::tokenFor($buyer)];
+        $dispute = $k->disputes->create($escrow->id, ['reason' => 'not_as_agreed', 'description' => 'The work does not match the brief at all.'], $buyerToken);
+        $escalated = $k->disputes->escalate($dispute->id, $buyerToken);
+        self::assertSame('under_review', $escalated->status);
+        self::assertNull($escalated->outcome);
+        $e = self::catching(ConflictError::class, fn() => $k->disputes->concede($dispute->id, ['customerToken' => self::tokenFor($seller)]));
+        self::assertSame('escrow_under_review', $e->code);
+        self::assertSame('disputed', $k->escrows->retrieve($escrow->id)->status);
+    }
+
     #[TestDox('[E2E-021] an open dispute blocks the normal release')]
     public function testDisputeBlocksRelease(): void
     {

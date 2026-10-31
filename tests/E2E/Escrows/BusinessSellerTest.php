@@ -7,6 +7,7 @@ namespace KetaPay\Tests\E2E\Escrows;
 use KetaPay\Errors\KetaPayError;
 use KetaPay\Models\BusinessSeller;
 use KetaPay\Tests\E2E\Support\E2ETestCase;
+use KetaPay\Tests\E2E\Support\Env;
 use PHPUnit\Framework\Attributes\TestDox;
 
 final class BusinessSellerTest extends E2ETestCase
@@ -50,5 +51,36 @@ final class BusinessSellerTest extends E2ETestCase
         ['escrow' => $escrow] = self::fundedEscrow();
         $e = self::catching(KetaPayError::class, fn() => self::ketapay()->escrows->milestones->deliver($escrow->id, self::first($escrow)->id));
         self::assertSame('customer_token_required', $e->code);
+    }
+
+    #[TestDox('[E2E-028] refunds an own sale with the key alone, and the money action can be read back')]
+    public function testRefundOwnSale(): void
+    {
+        $escrowId = self::paidOwnSale();
+        $k = self::ketapay();
+        $action = $k->escrows->refund($escrowId, ['reason' => 'Out of stock, agreed with the customer.']);
+        self::assertSame(['money_action', 'refund', 'executed'], [$action->object, $action->action, $action->status]);
+        self::assertSame('refunded', $k->escrows->retrieve($escrowId)->status);
+        $read = $k->moneyActions->retrieve($action->id);
+        self::assertSame([$action->id, $action->status, $action->amount], [$read->id, $read->status, $read->amount]);
+    }
+
+    #[TestDox('[E2E-029] a key without escrows:manage cannot refund, and the escrow stays funded')]
+    public function testRefundNeedsScope(): void
+    {
+        $restricted = Env::restrictedKey() ?? self::markTestSkipped('KETAPAY_E2E_RESTRICTED_SECRET_KEY not set');
+        $escrowId = self::paidOwnSale();
+        $e = self::catching(KetaPayError::class, fn() => self::ketapay($restricted)->escrows->refund($escrowId, ['reason' => 'Out of stock, agreed with the customer.']));
+        self::assertSame('missing_scope', $e->code);
+        self::assertSame('active', self::ketapay()->escrows->retrieve($escrowId)->status);
+    }
+
+    private static function paidOwnSale(): string
+    {
+        $params = self::sessionParams(self::people());
+        unset($params['seller']);
+        $k = self::ketapay();
+        $session = $k->checkoutSessions->create($params);
+        return (string) $k->testHelpers->checkoutSessions->pay($session->id)->escrow_id;
     }
 }

@@ -35,6 +35,7 @@ final class SecurityAndDefaultsTest extends TestCase
             'see a release code' => fn() => $k->escrows->milestones->releaseCode('e1', 'm1', []), // @phpstan-ignore argument.type
             'open a dispute' => fn() => $k->disputes->create('e1', ['reason' => 'damaged', 'description' => 'Arrived cracked'], ['idempotencyKey' => 'x']), // @phpstan-ignore argument.type
             'concede' => fn() => $k->disputes->concede('d1', []), // @phpstan-ignore argument.type
+            'escalate' => fn() => $k->disputes->escalate('d1', []), // @phpstan-ignore argument.type
             'withdraw' => fn() => $k->disputes->withdraw('d1', []), // @phpstan-ignore argument.type
             'add evidence' => fn() => $k->disputes->submitEvidence('d1', ['statement' => 'Photos attached'], []), // @phpstan-ignore argument.type
             'list evidence' => fn() => $k->disputes->listEvidence('d1', []), // @phpstan-ignore argument.type
