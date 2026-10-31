@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: 5d4676613f93dd9422c564e54b691e405450cc7d167b95aa51a9d83f1508bd1a -->
+<!-- sha256: 17beefb90de2ae6536cd438779866de033d06ba397895f113920795998d1a11d -->
 
 # KetaPay SDK test catalogue
 
@@ -33,7 +33,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | SEC-003 | unit | Ids are encoded as single path segments: an id like `../webhook_endpoints` cannot change the route |
 | SEC-004 | unit | Logs at every level never contain the secret key, customer tokens, webhook secrets or request bodies |
 | SEC-005 | unit | Test helpers refuse a live key before sending anything (`test_mode_only`) |
-| SEC-006 | unit | Calls that move money require a customer token in their signature, where the language can enforce it (compile-time check) |
+| SEC-006 | unit | Calls that move money for a customer require a customer token in their signature, where the language can enforce it (compile-time check). Money actions, which the business takes itself with `escrows:manage`, don't |
 | SEC-007 | unit | Uploaded file bytes are sent as multipart form data, never inlined into JSON |
 
 ## WH: webhook signatures
@@ -64,6 +64,8 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | REQ-008 | unit | Creating a webhook endpoint with only a URL is allowed and sends no `enabled_events` (the API defaults it to every event) |
 | REQ-009 | unit | Creating a checkout session without a seller is allowed and sends no `seller` (the business sells its own goods) |
 | REQ-010 | unit | Delivering a milestone without a customer token is allowed and sends no `KetaPay-Customer-Token` (the business delivers its own sale) |
+| REQ-011 | unit | Refunding an escrow sends `reason` in the JSON body and an idempotency key, and no `KetaPay-Customer-Token` |
+| REQ-012 | unit | Escalating a dispute posts to `/disputes/{id}/escalate` with the customer token and an idempotency key, and no body |
 
 ## ERR: errors and responses
 
@@ -157,3 +159,6 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-025 | e2e | A checkout session without a seller makes the business the seller (`seller.type` is `business`, by its name); paid, delivered with the key alone and released by the buyer, the escrow ends `completed` with that seller |
 | E2E-026 | e2e | Commission on the business's own sale is refused (`commission_not_allowed`) |
 | E2E-027 | e2e | Delivering a sale between customers without the seller's token is refused (`customer_token_required`) |
+| E2E-028 | e2e | A paid own sale is refunded with the key alone: the money action is `executed`, the escrow is `refunded`, and getting the money action by id returns the same record |
+| E2E-029 | e2e | Refunding with a key without `escrows:manage` is refused (`missing_scope`) and the escrow stays funded |
+| E2E-030 | e2e | A dispute the buyer escalates is `under_review`, conceding is then refused (`escrow_under_review`), and no money has moved |

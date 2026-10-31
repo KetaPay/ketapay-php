@@ -96,6 +96,7 @@ final class ContractTest extends TestCase
         $k->disputes->create(self::IDS['escrow'], ['reason' => 'not_as_agreed', 'description' => 'Wrong colours used throughout', 'milestone_id' => self::IDS['milestone']], self::CUSTOMER);
         $k->disputes->submitEvidence(self::IDS['dispute'], ['statement' => 'See the brand guide', 'files' => [self::IDS['file']]], self::CUSTOMER);
         $k->disputes->concede(self::IDS['dispute'], self::CUSTOMER);
+        $k->disputes->escalate(self::IDS['dispute'], self::CUSTOMER);
         $k->disputes->withdraw(self::IDS['dispute'], self::CUSTOMER);
         $k->disputes->retrieve(self::IDS['dispute']);
         self::assertSame('list', $k->disputes->listForEscrow(self::IDS['escrow'])->object);

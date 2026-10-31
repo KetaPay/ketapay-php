@@ -11,6 +11,7 @@ namespace KetaPay\Tests\E2E\Support;
  *   KETAPAY_E2E_SECRET_KEY        sk_test_ key of the e2e organisation                (required)
  *   KETAPAY_E2E_OTHER_SECRET_KEY  sk_test_ key of a second organisation, for isolation tests
  *   KETAPAY_E2E_LIVE_SECRET_KEY   sk_live_ key on staging, for the live-key refusal test
+ *   KETAPAY_E2E_RESTRICTED_SECRET_KEY  sk_test_ key of the e2e organisation without escrows:manage, for the scope test
  *   KETAPAY_E2E_WEBHOOK_URL       an HTTPS URL that answers 200, for webhook delivery tests
  */
 final class Env
@@ -38,6 +39,11 @@ final class Env
     public static function liveKey(): ?string
     {
         return self::get('KETAPAY_E2E_LIVE_SECRET_KEY');
+    }
+
+    public static function restrictedKey(): ?string
+    {
+        return self::get('KETAPAY_E2E_RESTRICTED_SECRET_KEY');
     }
 
     public static function webhookUrl(): ?string

@@ -56,6 +56,16 @@ final class Disputes extends AbstractResource
     }
 
     /**
+     * Hands an open dispute to KetaPay to decide, for the customer whose token you send. No money moves.
+     *
+     * @param CustomerRequestOptions $options
+     */
+    public function escalate(string $id, array $options): Dispute
+    {
+        return $this->object(Dispute::class, 'POST', '/disputes/' . self::seg($id) . '/escalate', options: self::customer($options));
+    }
+
+    /**
      * Withdraws a dispute. Only whoever opened it.
      *
      * @param CustomerRequestOptions $options

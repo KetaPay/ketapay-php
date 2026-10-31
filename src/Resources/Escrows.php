@@ -7,10 +7,12 @@ namespace KetaPay\Resources;
 use KetaPay\Http\HttpClient;
 use KetaPay\Models\Escrow;
 use KetaPay\Models\Flag;
+use KetaPay\Models\MoneyAction;
 use KetaPay\Page;
 
 /**
  * @phpstan-import-type CreateFlagRequest from \KetaPay\Types\Params
+ * @phpstan-import-type CreateRefundRequest from \KetaPay\Types\Params
  * @phpstan-import-type ListEscrowsParams from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  */
@@ -39,6 +41,17 @@ final class Escrows extends AbstractResource
     public function list(array $params = [], array $options = []): Page
     {
         return $this->page(Escrow::class, '/escrows', $params, $options);
+    }
+
+    /**
+     * Refunds your own sale with your key alone. Needs a key with the `escrows:manage` scope.
+     *
+     * @param CreateRefundRequest $params
+     * @param RequestOptions      $options
+     */
+    public function refund(string $id, array $params, array $options = []): MoneyAction
+    {
+        return $this->object(MoneyAction::class, 'POST', '/escrows/' . self::seg($id) . '/refund', $params, $options);
     }
 
     /**

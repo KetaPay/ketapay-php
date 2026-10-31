@@ -17,6 +17,7 @@ use KetaPay\Resources\Disputes;
 use KetaPay\Resources\Escrows;
 use KetaPay\Resources\Events;
 use KetaPay\Resources\Files;
+use KetaPay\Resources\MoneyActions;
 use KetaPay\Resources\PayoutAccounts;
 use KetaPay\Resources\TestHelpers;
 use KetaPay\Resources\WebhookEndpoints;
@@ -46,6 +47,8 @@ final class KetaPay
     public readonly Escrows $escrows;
     // Disputes
     public readonly Disputes $disputes;
+    // What your business decided that moved money
+    public readonly MoneyActions $moneyActions;
     public readonly Chargebacks $chargebacks;
     // Payouts
     public readonly PayoutAccounts $payoutAccounts;
@@ -107,6 +110,7 @@ final class KetaPay
         $this->customerSessions = new CustomerSessions($http);
         $this->escrows = new Escrows($http);
         $this->disputes = new Disputes($http);
+        $this->moneyActions = new MoneyActions($http);
         $this->chargebacks = new Chargebacks($http);
         $this->payoutAccounts = new PayoutAccounts($http);
         $this->banks = new Banks($http);
