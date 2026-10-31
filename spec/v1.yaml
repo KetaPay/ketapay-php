@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 5c3c381f0014c4cf20e68718fe067ae3223a15e8100166cd63973e7fe966a65f
+# sha256: d5bbe9f8bdb0682ead4f0bfa6417cb9164c543df86f1ae6202a3b5e1ce8e6d0b
 
 openapi: 3.1.0
 info:
@@ -104,8 +104,8 @@ info:
 
     KetaPay sends events to the endpoints you register (see `Webhook endpoints` and the
     `webhooks` section). Most integrations need one endpoint that receives every event:
-    register it without `enabled_events` and ignore the types you don't handle. `refund.*` and
-    `chargeback.*` events are not sent yet during the beta; they start when refunds to the
+    register it without `enabled_events` and ignore the types you don't handle. `refund.failed`
+    and `chargeback.*` events are not sent yet during the beta; they start when refunds to the
     buyer's card or bank account and chargeback handling go live.
 
     Each delivery is a `POST` with the `Event` as its JSON body and a signature header:
@@ -221,8 +221,8 @@ tags:
       to the two parties and KetaPay; your key alone cannot read it.
   - name: Payout accounts
     description: |
-      Where a customer's money goes: a seller's releases, or a buyer's refund that couldn't go
-      back to their card. The account can be in any name (the customer's, their business's, a
+      Where a customer's money goes: a seller's releases, or a buyer's refund they withdraw
+      from their KetaPay balance. The account can be in any name (the customer's, their business's, a
       family member's), so the protection is who can add it: only that customer, by confirming
       a one-time code sent to their email or phone. The code message names the
       bank and the last 4 digits, so the seller sees exactly what they are approving.
@@ -237,16 +237,18 @@ tags:
       sent as soon as they confirm one. Each milestone's `payout` shows where its money is.
   - name: Refunds
     description: |
-      Money returned to the buyer (a cancelled checkout, a seller conceding, or a dispute
-      KetaPay decided for the buyer) goes back the way it came: to the card, or to the bank account the
-      transfer came from. Card refunds take 5 to 10 working days to show, depending on the
-      buyer's bank.
-
-      If that fails (the card has expired or been closed, or the sending account can't receive
-      money), the refund goes to the buyer's KetaPay balance instead, and KetaPay asks the
-      buyer to withdraw it to a bank account they confirm with a one-time code (the same
+      Money returned to the buyer (a cancelled checkout, a seller conceding, a refund you make
+      with `POST /escrows/{id}/refund`, or a dispute decided for the buyer) goes to the buyer's
+      KetaPay balance at once, with `destination` `ketapay_balance`. The buyer can spend it or
+      withdraw it to a bank account they confirm with a one-time code (the same
       `Payout accounts` flow sellers use). Refunded money is never lost and never goes to anyone
       but the buyer. Each milestone's `refund` shows where its money is.
+
+      Refunds back the way the money came (to the card, or to the bank account the transfer
+      came from) are not live yet during the beta. When they are, `destination` says which,
+      card refunds take 5 to 10 working days to show, and a refund that can't go back (an
+      expired or closed card, an account that can't receive) goes to the KetaPay balance
+      instead, with `refund.failed`.
   - name: Money actions
     description: |
       A business can move money on a deal itself, without a customer token, through a key with
@@ -2131,8 +2133,10 @@ webhooks:
         - Events
       summary: refund.sent
       description: |
-        Money went back to the buyer's card or bank account. `data.object` is the `Refund`.
-        Card refunds can take 5 to 10 working days to show on the buyer's statement.
+        Money went back to the buyer. `data.object` is the `Refund`; its `destination` says
+        where. During the beta every refund goes to the buyer's KetaPay balance at once. Once
+        refunds to the card go live, those can take 5 to 10 working days to show on the
+        buyer's statement.
       parameters:
         - $ref: '#/components/parameters/SignatureHeader'
       requestBody:
@@ -4027,7 +4031,10 @@ components:
             - card
             - bank_account
             - ketapay_balance
-          description: Where the money went. `ketapay_balance` after a failed card or bank refund.
+          description: |
+            Where the money went. Always `ketapay_balance` during the beta; `card` and
+            `bank_account` once refunds back the way the money came go live (and
+            `ketapay_balance` after one of those fails).
         status:
           type: string
           enum:
