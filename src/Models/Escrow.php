@@ -16,7 +16,6 @@ namespace KetaPay\Models;
  * @property-read int $amount
  * @property-read string $currency
  * @property-read Fees $fees
- * @property-read string $category See \KetaPay\Enums\Category.
  * @property-read string $title
  * @property-read string $description
  * @property-read list<Image> $images KetaPay's copies of the images sent at checkout; the first is the cover
