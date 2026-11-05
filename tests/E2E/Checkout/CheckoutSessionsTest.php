@@ -23,7 +23,7 @@ final class CheckoutSessionsTest extends E2ETestCase
         self::assertCount(1, $session->images);
         $fees = $session->fees;
         self::assertSame($fees->amount + $fees->buyer_fee + $fees->buyer_vat, $fees->buyer_total);
-        self::assertSame($fees->amount - $fees->seller_fee - $fees->commission, $fees->seller_payout);
+        self::assertSame($fees->amount - $fees->seller_fee - $fees->seller_vat - $fees->commission, $fees->seller_payout);
     }
 
     #[TestDox("[E2E-003] returns bank transfer details for the buyer's token, and refuses someone else's")]

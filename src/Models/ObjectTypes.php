@@ -26,6 +26,7 @@ final class ObjectTypes
         'money_action' => MoneyAction::class,
         'payout' => Payout::class,
         'payout_account' => PayoutAccount::class,
+        'pricing' => Pricing::class,
         'refund' => Refund::class,
         'release_code' => ReleaseCode::class,
         'webhook_endpoint' => WebhookEndpoint::class,

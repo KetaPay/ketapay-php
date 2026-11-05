@@ -19,7 +19,8 @@ namespace KetaPay\Models;
  * @property-read string $status See \KetaPay\Enums\MilestoneStatus.
  * @property-read Delivery|null $delivery What the seller sent when marking it delivered. Null before that.
  * @property-read string|null $inspection_ends_at When the buyer's inspection period ends for this delivery. Null unless it is `delivered`. Nothing releases then; the seller may escalate with a `buyer_unresponsive` dispute.
- * @property-read int $seller_fee
+ * @property-read int $seller_fee This milestone's share of the seller's fee
+ * @property-read int $seller_vat VAT on this milestone's `seller_fee`
  * @property-read int $commission Your share from this milestone's release
  * @property-read int $seller_payout
  * @property-read Payout|null $payout Where the seller's money for this milestone is. Null until released.

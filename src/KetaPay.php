@@ -19,6 +19,7 @@ use KetaPay\Resources\Events;
 use KetaPay\Resources\Files;
 use KetaPay\Resources\MoneyActions;
 use KetaPay\Resources\PayoutAccounts;
+use KetaPay\Resources\Pricing;
 use KetaPay\Resources\TestHelpers;
 use KetaPay\Resources\WebhookEndpoints;
 use KetaPay\Resources\Webhooks;
@@ -53,6 +54,8 @@ final class KetaPay
     // Payouts
     public readonly PayoutAccounts $payoutAccounts;
     public readonly Banks $banks;
+    // Pricing
+    public readonly Pricing $pricing;
     // Files
     public readonly Files $files;
     // Webhooks
@@ -114,6 +117,7 @@ final class KetaPay
         $this->chargebacks = new Chargebacks($http);
         $this->payoutAccounts = new PayoutAccounts($http);
         $this->banks = new Banks($http);
+        $this->pricing = new Pricing($http);
         $this->files = new Files($http);
         $this->webhookEndpoints = new WebhookEndpoints($http);
         $this->events = new Events($http);
