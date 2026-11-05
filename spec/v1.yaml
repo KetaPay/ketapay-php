@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 5b6c2d12145370c5789f4154fe80e52d0cf7e236871898b5ead64729b397ca36
+# sha256: 4fb36e43bad44fb3c9f9c3e1649b704a6f0062ece97b002ef4ba39c2f670d434
 
 openapi: 3.1.0
 info:
@@ -39,8 +39,10 @@ info:
     1. The buyer pays the full amount up front. KetaPay holds it and the plan is fixed.
     2. For each milestone, in order, the seller marks it **delivered**, with an optional note
        and files (a tracking number, a link to the work, a signed document).
-    3. The buyer **releases** it, and the seller is paid for that milestone. If the buyer goes
-       quiet and you set `auto_release_hours`, it releases when that time runs out.
+    3. The buyer **releases** it, and the seller is paid for that milestone. They have an
+       inspection period (`release.inspection_hours`, 72 by default) to release it, request
+       changes or report a problem. Nothing releases on its own: if the buyer goes quiet, the
+       seller can escalate once it ends and KetaPay decides.
     4. When every milestone is released, the escrow is `completed`.
 
     For in-person deals, set `release.method` to `release_code`: the buyer gets a 6-digit code
@@ -136,10 +138,12 @@ info:
     - No email, WhatsApp or SMS is sent. Every one-time code is `123456`.
     - Pay a checkout session with `POST /test_helpers/checkout_sessions/{id}/pay`, or on the
       hosted checkout with the test cards it lists.
-    - Move an escrow through any state (deliver, release, auto-release, disputes, evidence
-      requests, chargebacks, failed payouts and refunds) with
-      `POST /test_helpers/escrows/{id}/simulate`, so you can test every webhook without a real
-      buyer or seller.
+    - Act as the buyer or the seller with their customer token (deliver, release, request
+      changes, open, concede or withdraw a dispute): the escrow moves and sends its webhooks as it
+      would live.
+    - Events nobody can cause in test mode (KetaPay ruling on a dispute, evidence requests,
+      chargebacks, failed refunds): send a sample of any of them to your endpoint with
+      `POST /webhook_endpoints/{id}/test`.
     - Payout account `0000000000` (any bank) succeeds; `0000000001` fails, so you can test
       `payout.failed`.
 
@@ -310,9 +314,8 @@ paths:
 
         **Release.** `release.method` is `buyer_confirms` (the buyer releases each delivered
         milestone) or `release_code` (in person: the seller enters the buyer's code).
-        `release.auto_release_hours` releases a delivered milestone when the buyer neither
-        releases nor reports a problem in that time; leave it null where silence should never
-        pay the seller, such as legal or property work.
+        `release.inspection_hours` (24 to 720, default 72) is how long the buyer has after each
+        delivery to release, request changes or report a problem. Nothing releases on its own.
 
         **Parties.** The buyer and the seller are people, each identified by an email address, a
         Nigerian phone number, or both. At least one is required; send both when you have them,
@@ -374,7 +377,7 @@ paths:
                     name: Tunde Bello
                   release:
                     method: buyer_confirms
-                    auto_release_hours: 168
+                    inspection_hours: 168
                   commission:
                     rate_bps: 1000
                   return_url: https://example.com/projects/4471
@@ -524,7 +527,9 @@ paths:
 
         Needs the buyer's customer token, so the payer is verified before money is taken. If the
         amount is above the buyer's verification level, this fails with `verification_required`;
-        send the buyer to the session's `url` to verify. Card payments go through KetaPay's
+        send the buyer to the session's `url` to verify. A `409` with `payment_method_not_allowed`
+        means bank transfer is off in your checkout settings; `transfer_not_available` means live
+        transfers are not open yet (use the card). Card payments go through KetaPay's
         secure card fields (in `@ketapay/checkout` or the hosted page) so card numbers never
         touch your servers.
       x-required-scope: checkout_sessions:write
@@ -703,8 +708,8 @@ paths:
         When you sell your own goods (the escrow's `seller` is your business), your key alone
         delivers it; without a token on anyone else's escrow it is `customer_token_required`.
         Only the current milestone (the first one not yet released) can be delivered. Moves no
-        money: the buyer then releases it, reports a problem, or (with `auto_release_hours`)
-        lets the time run out. Sends `milestone.delivered`.
+        money: it starts the buyer's inspection period (`inspection_ends_at`), in which they
+        release it, request changes or report a problem. Sends `milestone.delivered`.
       x-required-scope: escrows:act
       security:
         - secretKey: []
@@ -724,6 +729,49 @@ paths:
               attachments:
                 - name: Homepage.png
                   url: https://files.example.com/proj_4471/homepage.png
+      responses:
+        '200':
+          $ref: '#/components/responses/EscrowUpdated'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /escrows/{id}/milestones/{milestone_id}/request_changes:
+    post:
+      operationId: requestMilestoneChanges
+      tags:
+        - Escrows
+      summary: Request changes to a delivered milestone
+      description: |
+        The buyer, with their customer token, sends a delivered milestone back to the seller and
+        says what is missing. It is `funded` again (in progress), its inspection period stops, and
+        the seller's next delivery starts a fresh one. As often as the buyer needs; a seller who
+        thinks the changes are outside what was agreed opens a dispute. Moves no money. Sends
+        `milestone.changes_requested`.
+      x-required-scope: escrows:act
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/MilestoneId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestChangesRequest'
+            example:
+              note: The logo needs the darker purple from the brief.
       responses:
         '200':
           $ref: '#/components/responses/EscrowUpdated'
@@ -945,10 +993,10 @@ paths:
 
         - **The buyer**, when something was not delivered or not as agreed.
         - **The seller**, when they delivered but the buyer won't release or respond
-          (`buyer_unresponsive`). This matters most where `auto_release_hours` is null.
+          (`buyer_unresponsive`), once a delivered milestone's inspection period has ended
+          (before that, `409` with `inspection_not_over`).
 
-        A milestone dispute needs that milestone delivered. The whole escrow freezes: auto-release
-        pauses and the normal deliver and release calls are refused until the dispute ends, so an
+        A milestone dispute needs that milestone delivered. The whole escrow freezes: the normal deliver and release calls are refused until the dispute ends, so an
         escrow has one open dispute at a time (a second one is `dispute_open`). Evidence goes
         through `POST /disputes/{id}/evidence`; `files` here is the first of it. Sends
         `dispute.opened`.
@@ -1128,7 +1176,7 @@ paths:
       summary: Withdraw a dispute
       description: |
         Only whoever opened it, with their customer token, while it is `open`. No money moves; the
-        deal carries on where it was, and paused auto-release timers restart. Sends `dispute.resolved` with
+        deal carries on where it was. Sends `dispute.resolved` with
         `outcome` `withdrawn`.
       x-required-scope: escrows:act
       security:
@@ -1305,7 +1353,9 @@ paths:
         - Chargebacks
       summary: Add evidence against a chargeback
       description: |
-        For the seller, with their customer token, while the chargeback is `needs_response`.
+        For the seller, with their customer token (or your key alone when you are the seller), while
+        the chargeback is `needs_response` and before `respond_by`; otherwise `409` with
+        `chargeback_not_open`.
         KetaPay already sends the bank the agreement, the delivery and the buyer's release; add
         anything else that proves delivery (courier receipts, signed handover forms, messages).
         Files are uploaded with `POST /files` using purpose `dispute_evidence`.
@@ -1917,53 +1967,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
-  /test_helpers/escrows/{id}/simulate:
-    post:
-      operationId: testSimulateEscrow
-      tags:
-        - Test helpers
-      summary: Simulate an escrow event (sandbox)
-      description: |
-        Does what a buyer, seller, bank or KetaPay mediator would do, with the same rules and
-        the same webhooks as the real thing (an action that would be refused for real is
-        refused here too, so you see the same errors).
-
-        | `action` | Acts as | Needs |
-        | --- | --- | --- |
-        | `deliver` | Seller | `milestone_id` |
-        | `release` | Buyer | `milestone_id` |
-        | `auto_release` | The clock: skips to the end of the auto-release window | `milestone_id` |
-        | `open_dispute` | `actor` (`buyer` or `seller`) | `milestone_id` optional, `reason` |
-        | `request_evidence` | KetaPay | `from` (`buyer`, `seller` or `both`) |
-        | `resolve_dispute` | KetaPay | `outcome`, `refunded_amount` for a partial refund |
-        | `open_chargeback` | The buyer's card bank | `amount` optional |
-        | `close_chargeback` | The card bank | `chargeback_status` (`won` or `lost`) |
-        | `fail_payout` | The seller's bank | `milestone_id` |
-        | `fail_refund` | The buyer's card bank | `milestone_id` |
-      x-required-scope: test_helpers:write
-      parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SimulateRequest'
-            example:
-              action: deliver
-              milestone_id: 7c2e9a41-3b5d-4f6e-8a1c-9d0b2e4f6a83
-      responses:
-        '200':
-          $ref: '#/components/responses/EscrowUpdated'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
 webhooks:
   checkout_session.expired:
     post:
@@ -2004,8 +2007,25 @@ webhooks:
       summary: milestone.delivered
       description: |
         The seller marked a milestone delivered. `data.object` is the `Escrow`;
-        `data.milestone_id` names the milestone. Its `auto_release_at` is set if the escrow
-        auto-releases.
+        `data.milestone_id` names the milestone. Its `inspection_ends_at` is when the buyer's
+        inspection period ends.
+      parameters:
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        $ref: '#/components/requestBodies/EventDelivery'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventAcknowledged'
+  milestone.changes_requested:
+    post:
+      operationId: onMilestoneChangesRequested
+      tags:
+        - Events
+      summary: milestone.changes_requested
+      description: |
+        The buyer sent a delivered milestone back for changes. `data.object` is the `Escrow`;
+        `data.milestone_id` names the milestone, which is `funded` again with no inspection period
+        until the seller delivers it again.
       parameters:
         - $ref: '#/components/parameters/SignatureHeader'
       requestBody:
@@ -2021,7 +2041,7 @@ webhooks:
       summary: milestone.released
       description: |
         A milestone was paid to the seller: the buyer released it, the release code was entered,
-        the auto-release time ran out, or KetaPay decided a dispute for the seller.
+        or KetaPay decided a dispute for the seller.
         `data.object` is the `Escrow`; `data.milestone_id` names the milestone, whose
         `commission` is your earning.
       parameters:
@@ -2631,13 +2651,15 @@ components:
                 `contact_required`, `party_identity_conflict`, `parties_must_differ`, `milestones_total_mismatch`, `commission_exceeds_contract`,
                 `commission_not_allowed`,
                 `release_settings_invalid`, `verification_required`, `checkout_session_not_open`,
+                `payment_method_not_allowed`, `transfer_not_available`,
                 `escrow_already_flagged`, `escrow_state_invalid`, `milestone_not_current`,
-                `milestone_not_delivered`, `dispute_open`, `dispute_not_open`, `escrow_under_review`,
+                `milestone_not_delivered`, `inspection_not_over`, `dispute_open`, `dispute_not_open`, `escrow_under_review`,
+                `chargeback_not_open`,
                 `release_code_invalid`, `release_code_locked`, `code_invalid`, `code_expired`,
                 `too_many_attempts`, `customer_token_required`, `customer_token_expired`,
                 `customer_not_allowed`, `bank_account_not_found`, `file_too_large`,
                 `file_type_not_allowed`, `file_not_usable`, `resource_not_found`,
-                `api_key_invalid`, `api_key_expired`, `missing_scope`, `live_mode_not_enabled`,
+                `url_not_https`, `api_key_invalid`, `api_key_expired`, `missing_scope`, `live_mode_not_enabled`,
                 `platform_not_approved`, `rulings_paused`, `daily_limit_reached`,
                 `action_already_scheduled`,
                 `idempotency_key_missing`, `idempotency_key_reused`, `rate_limited`, `test_mode_only`,
@@ -2668,17 +2690,16 @@ components:
             `buyer_confirms`: the seller delivers each milestone and the buyer releases it.
             `release_code`: in person; the buyer gives the seller a 6-digit code per milestone
             once satisfied, and the seller entering it releases that milestone.
-        auto_release_hours:
-          type:
-            - integer
-            - 'null'
+        inspection_hours:
+          type: integer
           minimum: 24
           maximum: 720
-          default: null
+          default: 72
           description: |
-            `buyer_confirms` only. Hours after a milestone is delivered before it releases on its
-            own if the buyer neither releases it nor reports a problem. Null means it never
-            releases without the buyer. Typical values: 48 for goods, 168 for services.
+            The buyer's inspection period: hours after each delivery to release the milestone,
+            request changes or report a problem. Nothing releases when it ends; the seller can then
+            open a `buyer_unresponsive` dispute and KetaPay decides. A change request stops it, and
+            the next delivery starts a fresh one. Typical values: 48 for goods, 168 for services.
     MilestoneInput:
       type: object
       required:
@@ -2823,7 +2844,7 @@ components:
             - string
             - 'null'
           format: uri
-          description: The listing, project or deal on your site
+          description: The listing, project or deal on your site. Must be `https`; plain `http` works only for `localhost` and `127.0.0.1` with a test key.
         milestones:
           type: array
           minItems: 1
@@ -2856,13 +2877,13 @@ components:
         return_url:
           type: string
           format: uri
-          description: Where the buyer goes after paying. KetaPay appends `?checkout_session_id=<id>`.
+          description: Where the buyer goes after paying. KetaPay appends `?checkout_session_id=<id>`. Must be `https`; plain `http` works only for `localhost` and `127.0.0.1` with a test key.
         cancel_url:
           type:
             - string
             - 'null'
           format: uri
-          description: Where the buyer goes if they leave without paying
+          description: Where the buyer goes if they leave without paying. Must be `https`; plain `http` works only for `localhost` and `127.0.0.1` with a test key.
         external_reference:
           $ref: '#/components/schemas/ExternalReference'
         metadata:
@@ -3317,7 +3338,7 @@ components:
         - due_date
         - status
         - delivery
-        - auto_release_at
+        - inspection_ends_at
         - seller_fee
         - commission
         - seller_payout
@@ -3356,12 +3377,12 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Delivery'
             - type: 'null'
-        auto_release_at:
+        inspection_ends_at:
           type:
             - string
             - 'null'
           format: date-time
-          description: When it releases if the buyer does nothing. Null if the escrow never auto-releases or it isn't delivered yet.
+          description: When the buyer's inspection period ends for this delivery. Null unless it is `delivered`. Nothing releases then; the seller may escalate with a `buyer_unresponsive` dispute.
         seller_fee:
           $ref: '#/components/schemas/Amount'
         commission:
@@ -3901,6 +3922,7 @@ components:
         - id
         - object
         - dispute_id
+        - chargeback_id
         - submitted_by
         - statement
         - files
@@ -3913,8 +3935,17 @@ components:
           type: string
           const: evidence
         dispute_id:
-          type: string
+          type:
+            - string
+            - 'null'
           format: uuid
+          description: The dispute this evidence is for; null for chargeback evidence
+        chargeback_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: The chargeback this evidence is for; null for dispute evidence
         submitted_by:
           type: string
           enum:
@@ -4204,6 +4235,7 @@ components:
         - checkout_session.expired
         - escrow.funded
         - milestone.delivered
+        - milestone.changes_requested
         - milestone.released
         - escrow.completed
         - escrow.refunded
@@ -4306,57 +4338,6 @@ components:
             - 'null'
           description: Why it failed, when no status code came back (timeout, TLS, DNS)
           example: null
-    SimulateRequest:
-      type: object
-      required:
-        - action
-      properties:
-        action:
-          type: string
-          enum:
-            - deliver
-            - release
-            - auto_release
-            - open_dispute
-            - request_evidence
-            - resolve_dispute
-            - open_chargeback
-            - close_chargeback
-            - fail_payout
-            - fail_refund
-        milestone_id:
-          type:
-            - string
-            - 'null'
-          format: uuid
-        actor:
-          type: string
-          enum:
-            - buyer
-            - seller
-        reason:
-          $ref: '#/components/schemas/DisputeReason'
-        from:
-          type: string
-          enum:
-            - buyer
-            - seller
-            - both
-        outcome:
-          type: string
-          enum:
-            - released
-            - refunded
-            - partially_refunded
-        refunded_amount:
-          $ref: '#/components/schemas/Amount'
-        amount:
-          $ref: '#/components/schemas/Amount'
-        chargeback_status:
-          type: string
-          enum:
-            - won
-            - lost
     WebhookEndpoint:
       type: object
       required:
@@ -4458,6 +4439,16 @@ components:
                 - 'null'
               format: uuid
               description: For `milestone.*` events, the milestone that changed
+    RequestChangesRequest:
+      type: object
+      required:
+        - note
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: What the buyer needs changed, shown to the seller
   examples:
     OpenCheckoutSession:
       summary: Open, waiting for payment
@@ -4508,7 +4499,7 @@ components:
           name: Tunde Bello
         release:
           method: buyer_confirms
-          auto_release_hours: 168
+          inspection_hours: 168
         commission:
           rate_bps: 1000
           min_amount: 0
@@ -4562,7 +4553,7 @@ components:
                   url: https://files.ketapay.com/deliveries/7c2e9a41/homepage.png
                   sha256: 9f2c4e1a7b3d5f6e8a0c2b4d6f8e1a3c5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e
               delivered_at: '2026-10-22T16:05:00Z'
-            auto_release_at: '2026-10-29T16:05:00Z'
+            inspection_ends_at: '2026-10-29T16:05:00Z'
             seller_fee: 600000
             commission: 4000000
             seller_payout: 35400000
@@ -4579,7 +4570,7 @@ components:
             due_date: '2026-11-14'
             status: funded
             delivery: null
-            auto_release_at: null
+            inspection_ends_at: null
             seller_fee: 1200000
             commission: 8000000
             seller_payout: 70800000
@@ -4596,7 +4587,7 @@ components:
             due_date: '2026-11-21'
             status: funded
             delivery: null
-            auto_release_at: null
+            inspection_ends_at: null
             seller_fee: 450000
             commission: 3000000
             seller_payout: 26550000
@@ -4616,7 +4607,7 @@ components:
           has_claimed_account: true
         release:
           method: buyer_confirms
-          auto_release_hours: 168
+          inspection_hours: 168
         checkout_session_id: 2c9a7f4e-1b3d-4e6a-8f2c-5d7b9e1a3c60
         open_dispute_id: null
         open_chargeback_id: null

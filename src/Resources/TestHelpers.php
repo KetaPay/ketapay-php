@@ -10,11 +10,9 @@ use KetaPay\Http\HttpClient;
 final class TestHelpers
 {
     public readonly TestHelpers\CheckoutSessions $checkoutSessions;
-    public readonly TestHelpers\Escrows $escrows;
 
     public function __construct(HttpClient $http)
     {
         $this->checkoutSessions = new TestHelpers\CheckoutSessions($http);
-        $this->escrows = new TestHelpers\Escrows($http);
     }
 }

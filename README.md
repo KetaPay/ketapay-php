@@ -53,7 +53,7 @@ $ketapay->checkoutSessions->create([
     ],
     'buyer' => ['email' => 'ada@example.com'],
     'seller' => ['email' => 'tunde@example.com'],
-    'release' => ['method' => 'buyer_confirms', 'auto_release_hours' => 168],
+    'release' => ['method' => 'buyer_confirms', 'inspection_hours' => 72],
     'commission' => ['rate_bps' => 1000], // your 10% cut, from the seller's side of each release
 ]);
 ```
@@ -158,11 +158,11 @@ new KetaPay(['apiKey' => $key, 'logLevel' => 'debug', 'logger' => $monolog]);
 
 ## Sandbox
 
-With an `sk_test_` key, no messages are sent, every one-time code is `123456`, and you can move escrows through any state:
+With an `sk_test_` key, no messages are sent, every one-time code is `123456`, and you can pay a session from code. Move the escrow on by acting as the buyer and seller with their customer tokens, and send a test event for anything only KetaPay or a bank can cause:
 
 ```php
 $ketapay->testHelpers->checkoutSessions->pay($session->id);
-$ketapay->testHelpers->escrows->simulate($escrowId, ['action' => 'deliver', 'milestone_id' => $milestoneId]);
+$ketapay->webhookEndpoints->test($endpointId, 'dispute.resolved');
 ```
 
 ## Frameworks and hosting

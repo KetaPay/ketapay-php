@@ -10,6 +10,7 @@ use KetaPay\Models\ReleaseCode;
 /**
  * @phpstan-import-type DeliverMilestoneRequest from \KetaPay\Types\Params
  * @phpstan-import-type ReleaseMilestoneRequest from \KetaPay\Types\Params
+ * @phpstan-import-type RequestChangesRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
  */
@@ -25,6 +26,18 @@ final class Milestones extends AbstractResource
     public function deliver(string $escrowId, string $milestoneId, array $params = [], array $options = []): Escrow
     {
         return $this->object(Escrow::class, 'POST', self::path($escrowId, $milestoneId) . '/deliver', $params, $options);
+    }
+
+    /**
+     * The buyer sends a delivered milestone back to the seller with what is missing. It is in
+     * progress again and its inspection period stops. Needs the buyer's customer token.
+     *
+     * @param RequestChangesRequest  $params  note
+     * @param CustomerRequestOptions $options
+     */
+    public function requestChanges(string $escrowId, string $milestoneId, array $params, array $options): Escrow
+    {
+        return $this->object(Escrow::class, 'POST', self::path($escrowId, $milestoneId) . '/request_changes', $params, self::customer($options));
     }
 
     /**

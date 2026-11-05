@@ -21,17 +21,20 @@ final class PayoutsTest extends E2ETestCase
         self::assertSame('active', $k->payoutAccounts->confirm($pending->id, Env::SANDBOX_CODE, $options)->status);
     }
 
-    #[TestDox("[E2E-012] a failed payout records payout.failed and keeps the money in the seller's balance")]
+    #[TestDox("[E2E-012] a payout to the failing test account records payout.failed and keeps the money in the seller's balance")]
     public function testFailedPayout(): void
     {
-        self::requireServed('simulate', 'milestone_payout');
-        ['escrow' => $escrow] = self::fundedEscrow();
+        self::requireServed('payout_accounts', 'milestone_payout');
+        ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
         $k = self::ketapay();
         $m = self::first($escrow);
-        $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'deliver', 'milestone_id' => $m->id]);
-        $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'release', 'milestone_id' => $m->id]);
-        $after = $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'fail_payout', 'milestone_id' => $m->id]);
-        self::assertSame('failed', $after->milestones[0]->payout?->status);
+        $sellerOptions = ['customerToken' => self::tokenFor($seller)];
+        // 0000000001 is the sandbox account whose transfers always fail
+        $pending = $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0000000001'], $sellerOptions);
+        $k->payoutAccounts->confirm($pending->id, Env::SANDBOX_CODE, $sellerOptions);
+        $k->escrows->milestones->deliver($escrow->id, $m->id, ['note' => 'Done'], $sellerOptions);
+        $k->escrows->milestones->release($escrow->id, $m->id, [], ['customerToken' => self::tokenFor($buyer)]);
+        self::eventually(fn() => self::assertSame('failed', $k->escrows->retrieve($escrow->id)->milestones[0]->payout?->status));
         self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'payout.failed')));
     }
 }

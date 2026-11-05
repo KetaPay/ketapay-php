@@ -15,7 +15,6 @@ namespace KetaPay\Tests\E2E\Support;
  *   chargebacks       /escrows/{id}/chargebacks, /chargebacks/*
  *   files             POST /files
  *   payout_accounts   /banks, /payout_accounts/*
- *   simulate          POST /test_helpers/escrows/{id}/simulate
  *   milestone_payout  milestone.payout and milestone.refund
  */
 final class Served
@@ -24,7 +23,6 @@ final class Served
         'bank_transfer',
         'chargebacks',
         'payout_accounts',
-        'simulate',
         'milestone_payout', // always null for now
     ];
 

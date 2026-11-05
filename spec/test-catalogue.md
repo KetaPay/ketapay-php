@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: 17beefb90de2ae6536cd438779866de033d06ba397895f113920795998d1a11d -->
+<!-- sha256: f30f48402831675e6c4e28650c2366380f66b087ac6fdd903f7fe56bb1313e91 -->
 
 # KetaPay SDK test catalogue
 
@@ -138,13 +138,13 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-004 | e2e | Paying with the test helper funds the escrow, completes the session and records `escrow.funded` |
 | E2E-005 | e2e | Seller delivers, buyer releases: the milestone is `released` with a payout, and `milestone.delivered` and `milestone.released` events exist |
 | E2E-006 | e2e | In-person release with the buyer's release code works; a wrong code is refused |
-| E2E-007 | e2e | Auto-release (simulated) releases a delivered milestone |
+| E2E-007 | e2e | retired: no simulate helper (the inspection period runs on the clock; a sandbox seller waits it out) |
 | E2E-008 | e2e | retired: escrows have no cancel call (a paid escrow ends through a dispute, E2E-009) |
 | E2E-009 | e2e | Dispute opened, evidence uploaded with a file, seller concedes: dispute `resolved`, money refunded |
-| E2E-010 | e2e | A dispute KetaPay resolves (simulated partial refund) splits the money and records `dispute.resolved` |
-| E2E-011 | e2e | A lost chargeback (simulated) closes with `lost` and records `chargeback.closed` |
-| E2E-012 | e2e | A failed payout (simulated) records `payout.failed` and the money stays in the seller's balance |
-| E2E-013 | e2e | A failed card refund (simulated) moves the refund to the buyer's balance and records `refund.failed` |
+| E2E-010 | e2e | retired: no simulate helper (KetaPay rulings are tested with a `dispute.resolved` test event) |
+| E2E-011 | e2e | retired: no simulate helper (chargebacks are tested with `chargeback.*` test events) |
+| E2E-012 | e2e | A payout to test account `0000000001` records `payout.failed` and the money stays in the seller's balance |
+| E2E-013 | e2e | retired: no simulate helper (refunds go to the buyer's KetaPay balance; `refund.failed` is tested with a test event) |
 | E2E-014 | e2e | A payout account is added and confirmed with its code (sandbox code `123456`) |
 | E2E-015 | e2e | Same idempotency key and body returns the same object; same key with a different body returns `idempotency_key_reused` |
 | E2E-016 | e2e | Responses carry `KetaPay-Request-Id` and `X-RateLimit-*` headers |
@@ -155,7 +155,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-021 | e2e | An open dispute blocks the normal release (`dispute_open`) |
 | E2E-022 | e2e | Invalid input is refused with the right `param` (party without contact, milestones not adding up, description too short) |
 | E2E-023 | e2e | Lists paginate across more than one page |
-| E2E-024 | e2e | A live key cannot reach test helpers (`test_mode_only`) |
+| E2E-024 | e2e | A live key cannot reach test helpers (the API answers `404 resource_not_found`) |
 | E2E-025 | e2e | A checkout session without a seller makes the business the seller (`seller.type` is `business`, by its name); paid, delivered with the key alone and released by the buyer, the escrow ends `completed` with that seller |
 | E2E-026 | e2e | Commission on the business's own sale is refused (`commission_not_allowed`) |
 | E2E-027 | e2e | Delivering a sale between customers without the seller's token is refused (`customer_token_required`) |

@@ -57,8 +57,6 @@ final class FilesAndSandboxTest extends TestCase
     {
         $t = new MockTransport(['body' => []]);
         $live = self::client($t, ['apiKey' => 'sk_live_x']);
-        $e = self::catching(InvalidRequestError::class, fn() => $live->testHelpers->escrows->simulate('e1', ['action' => 'deliver']));
-        self::assertSame('test_mode_only', $e->code);
         $e = self::catching(InvalidRequestError::class, fn() => $live->testHelpers->checkoutSessions->pay('cs1'));
         self::assertSame('test_mode_only', $e->code);
         self::assertCount(0, $t->requests);
