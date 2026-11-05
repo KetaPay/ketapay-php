@@ -68,6 +68,7 @@ final class ContractTest extends TestCase
         self::assertSame('list', $k->escrows->list(['status' => 'active', 'limit' => 10])->object);
         self::assertSame('list', $k->events->list(['type' => 'escrow.funded'])->object);
         self::assertSame('list', $k->banks->list()->object);
+        self::assertSame('pricing', $k->pricing->retrieve()->object);
         self::assertSame('list', $k->chargebacks->listForEscrow(self::IDS['escrow'])->object);
     }
 

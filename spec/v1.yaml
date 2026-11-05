@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: 4fb36e43bad44fb3c9f9c3e1649b704a6f0062ece97b002ef4ba39c2f670d434
+# sha256: ead9b7dbaafabba11ff473df826e89782db951ab994c46f981cda1efb20cde9a
 
 openapi: 3.1.0
 info:
@@ -283,6 +283,8 @@ tags:
       longer while a dispute or chargeback on it is open.
   - name: Banks
     description: Nigerian banks for your payout account form.
+  - name: Pricing
+    description: The rate your escrows are priced on, so you never write it into your site or app.
   - name: Webhook endpoints
     description: URLs on your server that receive events.
   - name: Test helpers
@@ -331,9 +333,16 @@ paths:
         never send the seller's bank details: the seller adds them, with their own one-time
         code, on KetaPay's pages or through `POST /payout_accounts`.
 
-        **Fees.** The buyer pays the amount plus KetaPay's fee and VAT on that fee. The seller's
-        fee and your commission come out of each release. Nothing is charged to the seller or
-        earned by you on money refunded to the buyer. The response shows every figure in `fees`.
+        **Fees.** KetaPay charges one fee per escrow, at the rate `GET /pricing` returns, with VAT
+        on it. Your fee setting decides who pays: the buyer (with the amount), the seller (from
+        each release), half each, or your platform (from its commission, which must cover the
+        fee and VAT: `commission_below_fee`). Once the buyer has paid, the fee is kept even if the
+        escrow is refunded: the share the seller side carries comes out of your balance, which can
+        go below zero until your next earnings pay it off. The response shows every figure in `fees`.
+
+        **Escrow size.** Below your rate's `min_amount` the request fails with `amount_too_small`;
+        above its `max_amount` (₦50m on the rate cards) it fails with `amount_requires_custom_rate`
+        until KetaPay agrees a rate for it with you.
 
         **Limits.** Amounts above the buyer's verification level are allowed here; the buyer is
         asked to verify their identity before paying (the hosted checkout does this for you).
@@ -918,8 +927,11 @@ paths:
       summary: Refund an escrow
       description: |
         Refunds the buyer on a sale your business made itself, with your key alone. Everything
-        KetaPay still holds on the escrow goes back; milestones already released stay paid, and
-        the buyer's fee and its VAT are kept. Partial refunds aren't supported.
+        KetaPay still holds on the escrow goes back; milestones already released stay paid.
+        KetaPay's fee and its VAT are kept once the buyer has paid: what the buyer paid isn't
+        returned, and the share you carry (your fee setting) comes out of your balance, which can
+        go below zero. Your next earnings pay that off, and you can't withdraw until they have.
+        Partial refunds aren't supported.
 
         Needs a key with the `escrows:manage` scope, which is never added to an existing key and
         has to be chosen when the key is made. Refused while the escrow has an open dispute
@@ -1477,6 +1489,28 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Bank'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /pricing:
+    get:
+      operationId: retrievePricing
+      tags:
+        - Pricing
+      summary: Retrieve your pricing
+      description: |
+        The rate your next escrow is priced on: the fee (percentage plus a fixed part, once per
+        escrow), VAT, who pays it, and the escrow sizes it covers. Every escrow keeps the rate it
+        was created on, shown in its `fees.rate`.
+      x-required-scope: checkout_sessions:read
+      responses:
+        '200':
+          description: Your pricing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pricing'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '429':
@@ -2649,7 +2683,7 @@ components:
               description: |
                 Specific reason. Known codes: `parameter_missing`, `parameter_invalid`,
                 `contact_required`, `party_identity_conflict`, `parties_must_differ`, `milestones_total_mismatch`, `commission_exceeds_contract`,
-                `commission_not_allowed`,
+                `commission_not_allowed`, `commission_below_fee`, `amount_too_small`, `amount_requires_custom_rate`,
                 `release_settings_invalid`, `verification_required`, `checkout_session_not_open`,
                 `payment_method_not_allowed`, `transfer_not_available`,
                 `escrow_already_flagged`, `escrow_state_invalid`, `milestone_not_current`,
@@ -2906,45 +2940,70 @@ components:
         - buyer_vat
         - buyer_total
         - seller_fee
+        - seller_vat
+        - platform_fee
+        - platform_vat
         - commission
         - seller_payout
+        - rate
       description: |
-        Totals for the whole escrow, in kobo. `buyer_total = amount + buyer_fee + buyer_vat` and
-        `seller_payout = amount - seller_fee - commission`. Until everything is released these
-        are what will apply; each milestone shows its own share.
+        Totals for the whole escrow, in kobo. KetaPay charges one fee per escrow, `rate.fee_bps` of
+        the amount plus `rate.fee_flat`, with VAT at `rate.vat_bps` on the fee. Who pays it is your
+        fee setting: the buyer, the seller, split in half (the buyer's half takes the odd kobo), or
+        your platform out of its commission. `buyer_total = amount + buyer_fee + buyer_vat` and
+        `seller_payout = amount - seller_fee - seller_vat - commission`. Until everything is released
+        these are what will apply; each milestone shows its own share, and the flat part is charged
+        once per escrow, not per milestone.
       properties:
         amount:
           $ref: '#/components/schemas/Amount'
         buyer_fee:
           allOf:
             - $ref: '#/components/schemas/Amount'
-          description: KetaPay's fee paid by the buyer (1.5%)
-          example: 2250000
+          description: The buyer's share of KetaPay's fee, charged with the amount
+          example: 1320000
         buyer_vat:
           allOf:
             - $ref: '#/components/schemas/Amount'
-          description: 7.5% VAT on `buyer_fee`
-          example: 168750
+          description: VAT on `buyer_fee`
+          example: 99000
         buyer_total:
           allOf:
             - $ref: '#/components/schemas/Amount'
           description: What the buyer is charged
-          example: 152418750
+          example: 151419000
         seller_fee:
           allOf:
             - $ref: '#/components/schemas/Amount'
-          description: KetaPay's fee taken from the seller's payouts (1.5%)
-          example: 2250000
+          description: The seller's share of KetaPay's fee, taken from the seller's payouts
+          example: 1320000
+        seller_vat:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: VAT on `seller_fee`
+          example: 99000
+        platform_fee:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: When your platform pays the fee, all of it, taken from your commission at release. Otherwise 0.
+          example: 0
+        platform_vat:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: VAT on `platform_fee`
+          example: 0
         commission:
           allOf:
             - $ref: '#/components/schemas/Amount'
-          description: Your commission
+          description: Your commission, before `platform_fee` and `platform_vat` come out of it
           example: 15000000
         seller_payout:
           allOf:
             - $ref: '#/components/schemas/Amount'
           description: What the seller receives once everything is released
-          example: 132750000
+          example: 133581000
+        rate:
+          $ref: '#/components/schemas/Rate'
     CheckoutSession:
       type: object
       required:
@@ -3340,6 +3399,7 @@ components:
         - delivery
         - inspection_ends_at
         - seller_fee
+        - seller_vat
         - commission
         - seller_payout
         - payout
@@ -3384,7 +3444,13 @@ components:
           format: date-time
           description: When the buyer's inspection period ends for this delivery. Null unless it is `delivered`. Nothing releases then; the seller may escalate with a `buyer_unresponsive` dispute.
         seller_fee:
-          $ref: '#/components/schemas/Amount'
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: This milestone's share of the seller's fee
+        seller_vat:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: VAT on this milestone's `seller_fee`
         commission:
           allOf:
             - $ref: '#/components/schemas/Amount'
@@ -4166,6 +4232,105 @@ components:
             - string
             - 'null'
           format: uri
+    Pricing:
+      type: object
+      required:
+        - object
+        - plan
+        - name
+        - kind
+        - fee_bps
+        - fee_flat
+        - vat_bps
+        - fees_paid_by
+        - min_amount
+        - max_amount
+        - ends_at
+      description: |
+        The rate your next escrow is priced on. Your rate each month follows your completed volume
+        through KetaPay in the previous calendar month; a launch partner or negotiated rate replaces
+        the standard one until `ends_at`. Show these figures to your users instead of writing the
+        rate into your site or app.
+      properties:
+        object:
+          type: string
+          const: pricing
+        plan:
+          type: string
+          example: platform_launch
+        name:
+          type: string
+          example: Platform launch partner
+        kind:
+          type: string
+          enum:
+            - standard
+            - launch
+            - custom
+          description: '`standard`: the public rate card. `launch`: the launch partner rate. `custom`: a rate agreed with you.'
+        fee_bps:
+          type: integer
+          description: The percentage part of the fee, in basis points
+          example: 150
+        fee_flat:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: The fixed part of the fee, once per escrow
+          example: 15000
+        vat_bps:
+          type: integer
+          example: 750
+        fees_paid_by:
+          type: string
+          enum:
+            - split
+            - buyer
+            - seller
+            - platform
+          description: Who pays the fee on your escrows, set in your dashboard. `platform` is for platforms, paid out of your commission.
+        min_amount:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: The smallest escrow you can create (`amount_too_small` below it)
+          example: 0
+        max_amount:
+          type:
+            - integer
+            - 'null'
+          description: The largest escrow your rate covers, in kobo (`amount_requires_custom_rate` above it). Null for no limit.
+          example: 5000000000
+        ends_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When a launch partner or negotiated rate ends and your standard rate applies again. Null on the standard rate.
+    Rate:
+      type: object
+      required:
+        - plan
+        - fee_bps
+        - fee_flat
+        - vat_bps
+      description: The pricing plan the escrow is priced on. One fee per escrow, `fee_bps` of the amount plus `fee_flat`.
+      properties:
+        plan:
+          type: string
+          description: The pricing plan's code
+          example: platform
+        fee_bps:
+          type: integer
+          description: The percentage part of the fee, in basis points (175 = 1.75%)
+          example: 175
+        fee_flat:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: The fixed part of the fee, once per escrow
+          example: 15000
+        vat_bps:
+          type: integer
+          description: VAT on the fee, in basis points
+          example: 750
     CreatePayoutAccountRequest:
       type: object
       required:
@@ -4462,12 +4627,20 @@ components:
         currency: NGN
         fees:
           amount: 150000000
-          buyer_fee: 2250000
-          buyer_vat: 168750
-          buyer_total: 152418750
-          seller_fee: 2250000
+          buyer_fee: 1320000
+          buyer_vat: 99000
+          buyer_total: 151419000
+          seller_fee: 1320000
+          seller_vat: 99000
+          platform_fee: 0
+          platform_vat: 0
           commission: 15000000
-          seller_payout: 132750000
+          seller_payout: 133581000
+          rate:
+            plan: platform
+            fee_bps: 175
+            fee_flat: 15000
+            vat_bps: 750
         title: Company website
         description: Five-page marketing site with blog, built on Next.js. Brief attached.
         images: []
@@ -4524,12 +4697,20 @@ components:
         currency: NGN
         fees:
           amount: 150000000
-          buyer_fee: 2250000
-          buyer_vat: 168750
-          buyer_total: 152418750
-          seller_fee: 2250000
+          buyer_fee: 1320000
+          buyer_vat: 99000
+          buyer_total: 151419000
+          seller_fee: 1320000
+          seller_vat: 99000
+          platform_fee: 0
+          platform_vat: 0
           commission: 15000000
-          seller_payout: 132750000
+          seller_payout: 133581000
+          rate:
+            plan: platform
+            fee_bps: 175
+            fee_flat: 15000
+            vat_bps: 750
         title: Company website
         description: Five-page marketing site with blog, built on Next.js. Brief attached.
         images: []
@@ -4554,9 +4735,10 @@ components:
                   sha256: 9f2c4e1a7b3d5f6e8a0c2b4d6f8e1a3c5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e
               delivered_at: '2026-10-22T16:05:00Z'
             inspection_ends_at: '2026-10-29T16:05:00Z'
-            seller_fee: 600000
+            seller_fee: 352000
+            seller_vat: 26400
             commission: 4000000
-            seller_payout: 35400000
+            seller_payout: 35621600
             payout: null
             refund: null
             released_at: null
@@ -4571,9 +4753,10 @@ components:
             status: funded
             delivery: null
             inspection_ends_at: null
-            seller_fee: 1200000
+            seller_fee: 704000
+            seller_vat: 52800
             commission: 8000000
-            seller_payout: 70800000
+            seller_payout: 71243200
             payout: null
             refund: null
             released_at: null
@@ -4588,9 +4771,10 @@ components:
             status: funded
             delivery: null
             inspection_ends_at: null
-            seller_fee: 450000
+            seller_fee: 264000
+            seller_vat: 19800
             commission: 3000000
-            seller_payout: 26550000
+            seller_payout: 26716200
             payout: null
             refund: null
             released_at: null

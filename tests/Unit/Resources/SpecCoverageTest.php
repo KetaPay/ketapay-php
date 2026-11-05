@@ -65,6 +65,8 @@ final class SpecCoverageTest extends TestCase
             'listEscrowChargebacks' => fn(KetaPay $k) => $k->chargebacks->listForEscrow($id),
             'getChargeback' => fn(KetaPay $k) => $k->chargebacks->retrieve($id),
             'submitChargebackEvidence' => fn(KetaPay $k) => $k->chargebacks->submitEvidence($id, ['statement' => 'Courier receipt'], $t),
+            // Pricing
+            'retrievePricing' => fn(KetaPay $k) => $k->pricing->retrieve(),
             // Files
             'uploadFile' => fn(KetaPay $k) => $k->files->create(['file' => "\x01", 'filename' => 'a.pdf', 'purpose' => 'delivery']),
             // Payouts
