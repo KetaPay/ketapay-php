@@ -17,4 +17,13 @@ final class EventsTest extends E2ETestCase
         $event = self::eventsFor($escrow, 'escrow.funded')[0];
         self::assertSame($event->id, self::ketapay()->events->retrieve($event->id)->id);
     }
+
+    #[TestDox('[E2E-042] an event from the list reads back by id')]
+    public function testRetrieve(): void
+    {
+        ['escrow' => $escrow] = self::fundedEscrow();
+        self::eventually(fn() => self::assertNotEmpty(self::eventsFor($escrow, 'escrow.funded')));
+        $event = self::eventsFor($escrow, 'escrow.funded')[0];
+        self::assertSame($event->id, self::ketapay()->events->retrieve($event->id)->id);
+    }
 }

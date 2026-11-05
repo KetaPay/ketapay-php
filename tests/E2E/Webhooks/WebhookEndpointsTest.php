@@ -27,4 +27,19 @@ final class WebhookEndpointsTest extends E2ETestCase
             $k->webhookEndpoints->del($endpoint->id);
         }
     }
+
+    #[TestDox('[E2E-041] an endpoint shows in the list, and an update changes its events')]
+    public function testListAndUpdate(): void
+    {
+        $k = self::ketapay();
+        $endpoint = $k->webhookEndpoints->create(['url' => 'https://example.com/ketapay-e2e-webhook', 'enabled_events' => ['escrow.funded']]);
+        try {
+            $ids = array_map(static fn($e) => $e->id, $k->webhookEndpoints->list(['limit' => 100])->data);
+            self::assertContains($endpoint->id, $ids);
+            $updated = $k->webhookEndpoints->update($endpoint->id, ['enabled_events' => ['escrow.refunded']]);
+            self::assertSame(['escrow.refunded'], $updated->enabled_events);
+        } finally {
+            $k->webhookEndpoints->del($endpoint->id);
+        }
+    }
 }

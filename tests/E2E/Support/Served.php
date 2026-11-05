@@ -20,9 +20,6 @@ namespace KetaPay\Tests\E2E\Support;
 final class Served
 {
     private const NOT_SERVED_YET = [
-        'bank_transfer',
-        'chargebacks',
-        'payout_accounts',
         'milestone_payout', // always null for now
     ];
 
