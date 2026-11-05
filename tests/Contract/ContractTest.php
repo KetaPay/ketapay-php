@@ -50,7 +50,7 @@ final class ContractTest extends TestCase
             ],
             'buyer' => ['email' => 'ada@example.com', 'phone' => '+2348012345678'],
             'seller' => ['email' => 'tunde@example.com'],
-            'release' => ['method' => 'buyer_confirms', 'auto_release_hours' => 168],
+            'release' => ['method' => 'buyer_confirms', 'inspection_hours' => 72],
             'commission' => ['rate_bps' => 1000],
             'external_reference' => 'proj_4471',
             'metadata' => ['order' => '4471'],
@@ -79,6 +79,7 @@ final class ContractTest extends TestCase
         self::assertSame('customer_token', $k->customerSessions->verify(self::IDS['session'], '123456')->object);
         $k->checkoutSessions->bankTransfer(self::IDS['session'], self::CUSTOMER);
         $k->escrows->milestones->deliver(self::IDS['escrow'], self::IDS['milestone'], ['note' => 'Designs ready'], self::CUSTOMER);
+        $k->escrows->milestones->requestChanges(self::IDS['escrow'], self::IDS['milestone'], ['note' => 'Darker purple'], self::CUSTOMER);
         $k->escrows->milestones->deliver(self::IDS['escrow'], self::IDS['milestone'], ['note' => 'Shipped with GIG']);
         $k->checkoutSessions->create(['amount' => 2_500_000, 'title' => 'Desk lamp', 'description' => 'Brass desk lamp with a warm LED bulb, boxed.', 'buyer' => ['email' => 'ada@example.com']]);
         $k->escrows->milestones->release(self::IDS['escrow'], self::IDS['milestone'], [], self::CUSTOMER);
@@ -125,7 +126,6 @@ final class ContractTest extends TestCase
     #[TestDox('[SPEC-003] drives the sandbox')]
     public function testSandbox(): void
     {
-        $this->k->testHelpers->checkoutSessions->pay(self::IDS['session'], ['method' => 'card']);
-        self::assertSame('escrow', $this->k->testHelpers->escrows->simulate(self::IDS['escrow'], ['action' => 'deliver', 'milestone_id' => self::IDS['milestone']])->object);
+        self::assertSame('checkout_session', $this->k->testHelpers->checkoutSessions->pay(self::IDS['session'], ['method' => 'card'])->object);
     }
 }

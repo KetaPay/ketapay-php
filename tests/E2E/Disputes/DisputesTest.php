@@ -27,21 +27,6 @@ final class DisputesTest extends E2ETestCase
         self::eventually(fn() => self::assertSame('refunded', $k->escrows->retrieve($escrow->id)->status));
     }
 
-    #[TestDox('[E2E-010] a dispute KetaPay resolves with a partial refund splits the money')]
-    public function testPartialRefund(): void
-    {
-        self::requireServed('disputes', 'simulate');
-        ['escrow' => $escrow, 'buyer' => $buyer] = self::fundedEscrow();
-        $k = self::ketapay();
-        $m = self::first($escrow);
-        $k->disputes->create($escrow->id, ['milestone_id' => $m->id, 'reason' => 'incomplete', 'description' => 'Only half of the design was delivered.'], ['customerToken' => self::tokenFor($buyer)]);
-        $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'resolve_dispute', 'outcome' => 'partially_refunded', 'refunded_amount' => intdiv($m->amount, 2)]);
-        $dispute = $k->disputes->listForEscrow($escrow->id)->data[0];
-        self::assertSame('partially_refunded', $dispute->outcome);
-        self::assertSame('ketapay', $dispute->resolved_by);
-        self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'dispute.resolved')));
-    }
-
     #[TestDox('[E2E-030] an escalated dispute is under review and can no longer be settled')]
     public function testEscalate(): void
     {

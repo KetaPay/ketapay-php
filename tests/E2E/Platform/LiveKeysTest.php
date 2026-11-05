@@ -15,20 +15,20 @@ final class LiveKeysTest extends E2ETestCase
     #[TestDox('[E2E-024] the API refuses test helpers for a live key')]
     public function testLiveKeyRefused(): void
     {
-        self::requireServed('simulate');
         $live = Env::liveKey() ?? self::markTestSkipped('KETAPAY_E2E_LIVE_SECRET_KEY not set');
         // The SDK refuses before sending (SEC-005), so call the API directly to prove the server refuses too.
+        // A live key is told the helper isn't there.
         $response = (new CurlTransport())->send(new Request(
             'POST',
-            Env::baseUrl() . '/test_helpers/escrows/00000000-0000-4000-8000-000000000000/simulate',
+            Env::baseUrl() . '/test_helpers/checkout_sessions/00000000-0000-4000-8000-000000000000/pay',
             ['Authorization' => "Bearer $live", 'Content-Type' => 'application/json', 'Idempotency-Key' => Env::runId() . '-live-' . bin2hex(random_bytes(4))],
-            '{"action":"deliver"}',
+            '{}',
             30_000,
         ));
         self::assertSame(404, $response->statusCode);
         $body = json_decode($response->body, true);
         self::assertIsArray($body);
         self::assertIsArray($body['error'] ?? null);
-        self::assertSame('test_mode_only', $body['error']['code'] ?? null);
+        self::assertSame('resource_not_found', $body['error']['code'] ?? null);
     }
 }

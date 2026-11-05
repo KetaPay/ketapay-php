@@ -18,7 +18,7 @@ namespace KetaPay\Models;
  * @property-read string|null $due_date
  * @property-read string $status See \KetaPay\Enums\MilestoneStatus.
  * @property-read Delivery|null $delivery What the seller sent when marking it delivered. Null before that.
- * @property-read string|null $auto_release_at When it releases if the buyer does nothing. Null if the escrow never auto-releases or it isn't delivered yet.
+ * @property-read string|null $inspection_ends_at When the buyer's inspection period ends for this delivery. Null unless it is `delivered`. Nothing releases then; the seller may escalate with a `buyer_unresponsive` dispute.
  * @property-read int $seller_fee
  * @property-read int $commission Your share from this milestone's release
  * @property-read int $seller_payout

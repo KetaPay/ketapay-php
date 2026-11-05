@@ -43,16 +43,4 @@ final class ReleaseTest extends E2ETestCase
         self::assertSame('release_code_invalid', $e->code);
         self::assertSame('released', $k->escrows->milestones->release($escrow->id, $m->id, ['release_code' => $code])->milestones[0]->status);
     }
-
-    #[TestDox('[E2E-007] auto-releases a delivered milestone when the window runs out')]
-    public function testAutoRelease(): void
-    {
-        self::requireServed('simulate');
-        ['escrow' => $escrow] = self::fundedEscrow(['release' => ['method' => 'buyer_confirms', 'auto_release_hours' => 48]]);
-        $k = self::ketapay();
-        $m = self::first($escrow);
-        $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'deliver', 'milestone_id' => $m->id]);
-        $after = $k->testHelpers->escrows->simulate($escrow->id, ['action' => 'auto_release', 'milestone_id' => $m->id]);
-        self::assertSame('released', $after->milestones[0]->status);
-    }
 }

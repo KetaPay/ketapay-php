@@ -50,6 +50,7 @@ final class SpecCoverageTest extends TestCase
             'getMoneyAction' => fn(KetaPay $k) => $k->moneyActions->retrieve($id),
             'flagEscrow' => fn(KetaPay $k) => $k->escrows->flag($id, ['reason' => 'banned_seller']),
             'deliverMilestone' => fn(KetaPay $k) => $k->escrows->milestones->deliver($id, $m, [], $t),
+            'requestMilestoneChanges' => fn(KetaPay $k) => $k->escrows->milestones->requestChanges($id, $m, ['note' => 'More'], $t),
             'releaseMilestone' => fn(KetaPay $k) => $k->escrows->milestones->release($id, $m, ['release_code' => '123456']),
             'getMilestoneReleaseCode' => fn(KetaPay $k) => $k->escrows->milestones->releaseCode($id, $m, $t),
             // Disputes and chargebacks
@@ -84,7 +85,6 @@ final class SpecCoverageTest extends TestCase
             'getEvent' => fn(KetaPay $k) => $k->events->retrieve($id),
             // Sandbox
             'testPayCheckoutSession' => fn(KetaPay $k) => $k->testHelpers->checkoutSessions->pay($id),
-            'testSimulateEscrow' => fn(KetaPay $k) => $k->testHelpers->escrows->simulate($id, ['action' => 'deliver']),
         ];
     }
 

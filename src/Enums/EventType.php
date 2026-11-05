@@ -16,6 +16,7 @@ final class EventType
     public const CHECKOUT_SESSION_EXPIRED = 'checkout_session.expired';
     public const ESCROW_FUNDED = 'escrow.funded';
     public const MILESTONE_DELIVERED = 'milestone.delivered';
+    public const MILESTONE_CHANGES_REQUESTED = 'milestone.changes_requested';
     public const MILESTONE_RELEASED = 'milestone.released';
     public const ESCROW_COMPLETED = 'escrow.completed';
     public const ESCROW_REFUNDED = 'escrow.refunded';

@@ -11,7 +11,8 @@ namespace KetaPay\Models;
  *
  * @property-read string $id
  * @property-read string $object
- * @property-read string $dispute_id
+ * @property-read string|null $dispute_id The dispute this evidence is for; null for chargeback evidence
+ * @property-read string|null $chargeback_id The chargeback this evidence is for; null for dispute evidence
  * @property-read string $submitted_by
  * @property-read string|null $statement Null for a file the customer added in the KetaPay app, which comes without one
  * @property-read list<File> $files
