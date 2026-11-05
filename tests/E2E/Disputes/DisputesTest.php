@@ -17,7 +17,7 @@ final class DisputesTest extends E2ETestCase
         ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
         $k = self::ketapay();
         $buyerToken = self::tokenFor($buyer);
-        $file = $k->files->create(['file' => 'evidence', 'filename' => 'evidence.txt', 'purpose' => 'dispute_evidence'], ['customerToken' => $buyerToken]);
+        $file = $k->files->create(['file' => '%PDF-1.4 evidence', 'filename' => 'evidence.pdf', 'contentType' => 'application/pdf', 'purpose' => 'dispute_evidence'], ['customerToken' => $buyerToken]);
         $dispute = $k->disputes->create($escrow->id, ['reason' => 'not_received', 'description' => 'Nothing was delivered by the due date.', 'files' => [$file->id]], ['customerToken' => $buyerToken]);
         self::assertSame('open', $dispute->status);
         self::assertGreaterThan(0, count($k->disputes->listEvidence($dispute->id, ['customerToken' => $buyerToken])));
