@@ -1,5 +1,5 @@
 # End-to-end tests: the real SDK against the KetaPay staging API with sandbox keys. Every scenario is
-# tagged with its E2E-xxx id from the shared SDK test catalogue. Runs on every merge to main, nightly,
+# tagged with its E2E-xxx id from the shared SDK test catalogue. Runs on every merge to main, on pull requests that change the SDK or spec, nightly,
 # by hand, and inside Publish to Packagist.
 #
 # Settings come from Infisical (project ketapay-sdks, shared by every KetaPay SDK, environment staging):
@@ -12,6 +12,14 @@ name: E2E
 on:
   push:
     branches: [main] # every merge: a breaking change shows up in minutes, not the next morning
+  pull_request:
+    branches: [main] # catch a break before it merges; only the code and tests that can change the result
+    paths:
+      - 'src/**'
+      - 'spec/**'
+      - 'tests/E2E/**'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/e2e.yml'
   workflow_dispatch:
   schedule:
     - cron: '30 2 * * *' # nightly, 03:30 Lagos (after ketapay-node's run)
@@ -28,9 +36,16 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request replaces its running E2E. Other runs never cancel each other.
+concurrency:
+  group: e2e-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   e2e:
     name: E2E against staging
+    # Forks and Dependabot can't log in to Infisical, so their pull requests skip this job
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     permissions:
       contents: read

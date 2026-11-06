@@ -92,7 +92,7 @@ New scenario: add the row to the catalogue in the documentation repo first, `com
 
 The real SDK against the staging API with sandbox keys, in `tests/E2E/` by domain (`Checkout/`, `Customers/`, `Escrows/`, `Disputes/`, `Payouts/`, `Webhooks/`, `Platform/`). `Support/E2ETestCase.php` has the shared setup: fresh people per test, a funded escrow, customer tokens, events for an escrow, and `eventually()` for effects that land a moment later (never a fixed sleep). Everything created is stamped with the run id (`metadata.e2e_run`).
 
-Settings: `KETAPAY_E2E_BASE_URL` and `KETAPAY_E2E_SECRET_KEY`, plus optional ones listed in `Support/Env.php`. Run locally with `composer test:e2e`; without settings every test is skipped. The **E2E** workflow runs on every merge to `main`, nightly and by hand, reading the settings from Infisical (`ketapay-sdks`, staging: one project shared by every KetaPay SDK). **Publish to Packagist** runs it on the release tag and refuses a stable release unless it ran and passed.
+Settings: `KETAPAY_E2E_BASE_URL` and `KETAPAY_E2E_SECRET_KEY`, plus optional ones listed in `Support/Env.php`. Run locally with `composer test:e2e`; without settings every test is skipped. The **E2E** workflow runs on every merge to `main`, on pull requests that change the SDK or spec, nightly and by hand, reading the settings from Infisical (`ketapay-sdks`, staging: one project shared by every KetaPay SDK). **Publish to Packagist** runs it on the release tag and refuses a stable release unless it ran and passed.
 
 ## No breaking changes in v1
 
