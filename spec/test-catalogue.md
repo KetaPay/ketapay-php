@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: f30f48402831675e6c4e28650c2366380f66b087ac6fdd903f7fe56bb1313e91 -->
+<!-- sha256: c1c0810fd674db7aaf086ca9e78baa7cdc90f1a817ee8e6044f484df2095c24c -->
 
 # KetaPay SDK test catalogue
 
@@ -162,3 +162,15 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-028 | e2e | A paid own sale is refunded with the key alone: the money action is `executed`, the escrow is `refunded`, and getting the money action by id returns the same record |
 | E2E-029 | e2e | Refunding with a key without `escrows:manage` is refused (`missing_scope`) and the escrow stays funded |
 | E2E-030 | e2e | A dispute the buyer escalates is `under_review`, conceding is then refused (`escrow_under_review`), and no money has moved |
+| E2E-031 | e2e | Retrieving pricing returns the caller's current plan, with its fee, VAT, who pays and the escrow sizes it covers |
+| E2E-032 | e2e | A checkout session below the plan's minimum amount is refused (`amount_too_small`) and no session is created |
+| E2E-033 | e2e | A checkout session above the plan's maximum amount is refused (`amount_requires_custom_rate`) and no session is created |
+| E2E-034 | e2e | A dispute reads back by id and in the escrow's list, and evidence the other side submits shows in its evidence |
+| E2E-035 | e2e | The party who opened a dispute withdraws it: `resolved` with `outcome` `withdrawn`, the escrow goes back to `active`, and the other party can't withdraw it |
+| E2E-036 | e2e | Flagging an escrow records a flag on it with the reason given |
+| E2E-037 | e2e | An escrow with no chargeback lists none, and an unknown chargeback is `404` for reading and for submitting evidence |
+| E2E-038 | e2e | A checkout session reads back by id, and cancelling an open one closes it so a second cancel is refused |
+| E2E-039 | e2e | The buyer asks for changes on a delivered milestone: it is `funded` again and the seller can deliver it again |
+| E2E-040 | e2e | Banks are listed, and a payout account shows in the customer's list until it is deleted |
+| E2E-041 | e2e | A webhook endpoint shows in the list, and an update changes its events |
+| E2E-042 | e2e | An event from the events list reads back by id |

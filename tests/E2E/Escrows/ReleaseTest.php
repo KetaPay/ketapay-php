@@ -43,4 +43,18 @@ final class ReleaseTest extends E2ETestCase
         self::assertSame('release_code_invalid', $e->code);
         self::assertSame('released', $k->escrows->milestones->release($escrow->id, $m->id, ['release_code' => $code])->milestones[0]->status);
     }
+
+    #[TestDox('[E2E-039] the buyer asks for changes: the milestone is funded again and can be delivered again')]
+    public function testRequestChanges(): void
+    {
+        ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
+        $k = self::ketapay();
+        $m = self::first($escrow);
+        $sellerToken = ['customerToken' => self::tokenFor($seller)];
+        $k->escrows->milestones->deliver($escrow->id, $m->id, ['note' => 'Designs ready'], $sellerToken);
+        $changed = $k->escrows->milestones->requestChanges($escrow->id, $m->id, ['note' => 'The logo is missing from the designs.'], ['customerToken' => self::tokenFor($buyer)]);
+        self::assertSame('funded', $changed->milestones[0]->status);
+        $again = $k->escrows->milestones->deliver($escrow->id, $m->id, ['note' => 'Logo added'], $sellerToken);
+        self::assertSame('delivered', $again->milestones[0]->status);
+    }
 }

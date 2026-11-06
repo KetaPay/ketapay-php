@@ -37,4 +37,18 @@ final class PayoutsTest extends E2ETestCase
         self::eventually(fn() => self::assertSame('failed', $k->escrows->retrieve($escrow->id)->milestones[0]->payout?->status));
         self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'payout.failed')));
     }
+
+    #[TestDox("[E2E-040] banks are listed, and a payout account shows in the customer's list until deleted")]
+    public function testListAndDelete(): void
+    {
+        self::requireServed('payout_accounts');
+        $k = self::ketapay();
+        self::assertNotEmpty($k->banks->list()->data);
+        $options = ['customerToken' => self::tokenFor(self::people()['seller']['email'])];
+        $account = $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0000000000'], $options);
+        $ids = static fn(): array => array_map(static fn($a) => $a->id, $k->payoutAccounts->list($options)->data);
+        self::assertContains($account->id, $ids());
+        $k->payoutAccounts->del($account->id, $options);
+        self::assertNotContains($account->id, $ids());
+    }
 }
