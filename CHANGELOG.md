@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0-beta.5](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.4...v0.1.0-beta.5) (2026-11-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* add pricing->retrieve and the new fee fields (ENG-614) ([#31](https://github.com/KetaPay/ketapay-php/issues/31))
+* drop testHelpers->escrows->simulate, add milestones->requestChanges ([#28](https://github.com/KetaPay/ketapay-php/issues/28))
+
+### Features
+
+* add pricing-&gt;retrieve and the new fee fields (ENG-614) ([#31](https://github.com/KetaPay/ketapay-php/issues/31)) ([89df2bf](https://github.com/KetaPay/ketapay-php/commit/89df2bf179449c7d93eb7f80853dda366392bf0b))
+* drop testHelpers-&gt;escrows-&gt;simulate, add milestones-&gt;requestChanges ([#28](https://github.com/KetaPay/ketapay-php/issues/28)) ([9595cc3](https://github.com/KetaPay/ketapay-php/commit/9595cc3740adf2ff04a12d9f5014be3af2e19336))
+
 ## [0.1.0-beta.4](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.3...v0.1.0-beta.4) (2026-10-31)
 
 
