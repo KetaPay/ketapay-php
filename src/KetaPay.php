@@ -36,7 +36,7 @@ use KetaPay\Resources\Webhooks;
  */
 final class KetaPay
 {
-    public const VERSION = '0.1.0-beta.4'; // x-release-please-version
+    public const VERSION = '0.1.0-beta.5'; // x-release-please-version
 
     private const CONFIG_KEYS = ['apiKey', 'baseUrl', 'maxRetries', 'timeoutMs', 'transport', 'defaultHeaders', 'logLevel', 'logger', 'appInfo'];
 
