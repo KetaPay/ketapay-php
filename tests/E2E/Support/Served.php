@@ -7,7 +7,7 @@ namespace KetaPay\Tests\E2E\Support;
 /**
  * Parts of the spec the /v1 API doesn't serve yet: their routes answer 404, or the field is always null.
  * Scenarios that need one are skipped (or skip that check) until the API ships it. When it does, delete
- * the entry from NOT_SERVED_YET and the scenarios run again on their own.
+ * the entry from $notServedYet and the scenarios run again on their own.
  *
  *   bank_transfer     POST /checkout_sessions/{id}/bank_transfer
  *   release_code      GET /escrows/{id}/milestones/{milestone_id}/release_code
@@ -19,15 +19,14 @@ namespace KetaPay\Tests\E2E\Support;
  */
 final class Served
 {
-    private const NOT_SERVED_YET = [
-        'milestone_payout', // always null for now
-    ];
+    /** @var list<string> Empty while the API serves everything; a property, so the type stays list<string> */
+    private static array $notServedYet = [];
 
     /** True when the API serves every feature listed. */
     public static function all(string ...$features): bool
     {
         foreach ($features as $feature) {
-            if (in_array($feature, self::NOT_SERVED_YET, true)) {
+            if (in_array($feature, self::$notServedYet, true)) {
                 return false;
             }
         }
