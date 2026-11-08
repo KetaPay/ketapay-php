@@ -87,6 +87,7 @@ final class SpecCoverageTest extends TestCase
             'getEvent' => fn(KetaPay $k) => $k->events->retrieve($id),
             // Sandbox
             'testPayCheckoutSession' => fn(KetaPay $k) => $k->testHelpers->checkoutSessions->pay($id),
+            'testVerifyCustomer' => fn(KetaPay $k) => $k->testHelpers->customers->verify(['customerToken' => 't']),
         ];
     }
 

@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: ead9b7dbaafabba11ff473df826e89782db951ab994c46f981cda1efb20cde9a
+# sha256: 3ec602e69a4c4e5ec7398cc8e25be9c7cff452725f63b6096f767dfd9155b3a9
 
 openapi: 3.1.0
 info:
@@ -146,6 +146,9 @@ info:
       `POST /webhook_endpoints/{id}/test`.
     - Payout account `0000000000` (any bank) succeeds; `0000000001` fails, so you can test
       `payout.failed`.
+    - A seller you name (platforms) starts unverified, so their payouts are
+      `awaiting_verification`. Verify them with `POST /test_helpers/customers/verify` and their
+      held payouts go on to their payout account.
 
     Test helpers return `404 test_mode_only` with a live key.
 
@@ -2001,6 +2004,33 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+  /test_helpers/customers/verify:
+    post:
+      operationId: testVerifyCustomer
+      tags:
+        - Test helpers
+      summary: Verify a customer (sandbox)
+      description: |
+        Verifies the customer whose token you send, as finishing hosted verification would. Every
+        payout held for them (`awaiting_verification`) is freed and goes on to their payout account,
+        with `payout.sent` or `payout.failed` as usual.
+      x-required-scope: test_helpers:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The customer is verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerVerification'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
 webhooks:
   checkout_session.expired:
     post:
@@ -3338,6 +3368,7 @@ components:
         - account_number_last4
         - sent_at
         - failure_reason
+        - verification_url
       properties:
         id:
           type: string
@@ -3358,14 +3389,17 @@ components:
         status:
           type: string
           enum:
+            - awaiting_verification
             - awaiting_account
             - processing
             - sent
             - failed
           description: |
-            `awaiting_account`: in the seller's KetaPay balance until they confirm a payout
-            account. `processing`: transfer started. `sent`: reached the bank. `failed`: rejected
-            by the bank and back in the seller's balance.
+            `awaiting_verification`: held until the seller verifies their identity (platforms only:
+            a seller you name is paid once they have verified, any amount; a business selling for
+            itself is never held). `awaiting_account`: in the seller's KetaPay balance until they
+            confirm a payout account. `processing`: transfer started. `sent`: reached the bank.
+            `failed`: rejected by the bank and back in the seller's balance.
         bank_name:
           type:
             - string
@@ -3385,6 +3419,15 @@ components:
             - string
             - 'null'
           example: Account closed
+        verification_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: |
+            Where the seller verifies, while the payout is `awaiting_verification`: send them there.
+            Once they finish, every payout held for them goes on to their payout account. Null in
+            every other status, and until hosted verification is available.
     Milestone:
       type: object
       required:
@@ -4614,6 +4657,19 @@ components:
           minLength: 1
           maxLength: 1000
           description: What the buyer needs changed, shown to the seller
+    CustomerVerification:
+      type: object
+      description: The sandbox verified the customer (test helper)
+      required:
+        - object
+        - verified
+      properties:
+        object:
+          type: string
+          const: customer_verification
+        verified:
+          type: boolean
+          const: true
   examples:
     OpenCheckoutSession:
       summary: Open, waiting for payment

@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: c1c0810fd674db7aaf086ca9e78baa7cdc90f1a817ee8e6044f484df2095c24c -->
+<!-- sha256: 8e49fcf5c94ea0f82b285c015fb7e1501fc75131dab8e85455cf1bc7b5fed63d -->
 
 # KetaPay SDK test catalogue
 
@@ -143,7 +143,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-009 | e2e | Dispute opened, evidence uploaded with a file, seller concedes: dispute `resolved`, money refunded |
 | E2E-010 | e2e | retired: no simulate helper (KetaPay rulings are tested with a `dispute.resolved` test event) |
 | E2E-011 | e2e | retired: no simulate helper (chargebacks are tested with `chargeback.*` test events) |
-| E2E-012 | e2e | A payout to test account `0000000001` records `payout.failed` and the money stays in the seller's balance |
+| E2E-012 | e2e | A payout to test account `0000000001` (verified seller) records `payout.failed` and the money stays in the seller's balance |
 | E2E-013 | e2e | retired: no simulate helper (refunds go to the buyer's KetaPay balance; `refund.failed` is tested with a test event) |
 | E2E-014 | e2e | A payout account is added and confirmed with its code (sandbox code `123456`) |
 | E2E-015 | e2e | Same idempotency key and body returns the same object; same key with a different body returns `idempotency_key_reused` |
@@ -174,3 +174,4 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-040 | e2e | Banks are listed, and a payout account shows in the customer's list until it is deleted |
 | E2E-041 | e2e | A webhook endpoint shows in the list, and an update changes its events |
 | E2E-042 | e2e | An event from the events list reads back by id |
+| E2E-043 | e2e | An unverified seller's payout is `awaiting_verification`; verifying them (test helper) sends it on and records `payout.sent` |

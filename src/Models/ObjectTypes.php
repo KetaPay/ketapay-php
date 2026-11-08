@@ -16,6 +16,7 @@ final class ObjectTypes
         'checkout_session' => CheckoutSession::class,
         'customer_session' => CustomerSession::class,
         'customer_token' => CustomerToken::class,
+        'customer_verification' => CustomerVerification::class,
         'dispute' => Dispute::class,
         'escrow' => Escrow::class,
         'event' => Event::class,
