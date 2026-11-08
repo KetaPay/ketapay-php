@@ -72,6 +72,57 @@ final class PayoutsTest extends E2ETestCase
         self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'payout.sent')));
     }
 
+    #[TestDox("[E2E-044] a held payout's verification_url is the seller's /verify/ page, gone once they are verified")]
+    public function testVerificationLink(): void
+    {
+        self::requireServed('payout_accounts', 'milestone_payout');
+        ['escrow' => $escrow, 'buyer' => $buyer, 'seller' => $seller] = self::fundedEscrow();
+        $k = self::ketapay();
+        $m = self::first($escrow);
+        $sellerOptions = ['customerToken' => self::tokenFor($seller)];
+        $pending = $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0000000000'], $sellerOptions);
+        $k->payoutAccounts->confirm($pending->id, Env::SANDBOX_CODE, $sellerOptions);
+        $k->escrows->milestones->deliver($escrow->id, $m->id, ['note' => 'Done'], $sellerOptions);
+        $k->escrows->milestones->release($escrow->id, $m->id, [], ['customerToken' => self::tokenFor($buyer)]);
+        $held = $k->escrows->retrieve($escrow->id)->milestones[0]->payout;
+        self::assertNotNull($held);
+        self::assertSame('awaiting_verification', $held->status);
+        $link = $held->verification_url;
+        self::assertIsString($link);
+        self::assertMatchesRegularExpression('#^https?://[^/]+/verify/t_#', $link);
+
+        $k->testHelpers->customers->verify($sellerOptions);
+        self::eventually(
+            function () use ($k, $escrow): void {
+                $payout = $k->escrows->retrieve($escrow->id)->milestones[0]->payout;
+                self::assertNotNull($payout);
+                self::assertSame(['sent', null], [$payout->status, $payout->verification_url]);
+            },
+            self::PAYOUT_WORKER_WAIT_SECONDS,
+            2,
+        );
+    }
+
+    #[TestDox('[E2E-045] a verification link for a seller is their /verify/ page with the return URLs, for about a day')]
+    public function testVerificationLinkForSeller(): void
+    {
+        self::requireServed('payout_accounts');
+        $k = self::ketapay();
+        $options = ['customerToken' => self::tokenFor(self::people()['seller']['email'])];
+        $link = $k->verificationLinks->create(
+            ['return_url' => 'https://example.com/seller/done', 'refresh_url' => 'https://example.com/seller/again'],
+            $options,
+        );
+        self::assertSame('verification_link', $link->object);
+        self::assertFalse($link->livemode);
+        self::assertMatchesRegularExpression('#^https?://[^/]+/verify/ts_#', $link->url);
+        self::assertStringContainsString('return_url=' . rawurlencode('https://example.com/seller/done'), $link->url);
+        self::assertSame(['https://example.com/seller/done', 'https://example.com/seller/again'], [$link->return_url, $link->refresh_url]);
+        $hours = (strtotime($link->expires_at) - time()) / 3600;
+        self::assertGreaterThan(23, $hours);
+        self::assertLessThanOrEqual(24, $hours);
+    }
+
     #[TestDox("[E2E-040] banks are listed, and a payout account shows in the customer's list until deleted")]
     public function testListAndDelete(): void
     {

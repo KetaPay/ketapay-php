@@ -17,6 +17,7 @@ namespace KetaPay\Types;
  * @phpstan-type CreateFlagRequest array{reason: 'fraudulent_listing'|'banned_seller'|'banned_buyer'|'suspicious_activity'|'other', note?: string|null}
  * @phpstan-type CreatePayoutAccountRequest array{bank_code: string, account_number: string}
  * @phpstan-type CreateRefundRequest array{reason: string}
+ * @phpstan-type CreateVerificationLinkRequest array{return_url: string, refresh_url?: string}
  * @phpstan-type CreateWebhookEndpointRequest array{url: string, enabled_events?: list<'checkout_session.expired'|'escrow.funded'|'milestone.delivered'|'milestone.changes_requested'|'milestone.released'|'escrow.completed'|'escrow.refunded'|'dispute.opened'|'dispute.evidence_requested'|'dispute.evidence_submitted'|'dispute.resolved'|'payout.sent'|'refund.sent'|'refund.failed'|'chargeback.opened'|'chargeback.closed'|'payout.failed'|'*'>, description?: string|null, metadata?: array<string, string>}
  * @phpstan-type DeliverMilestoneRequest array{note?: string|null, attachments?: list<array{name?: string, file: string, url?: string}|array{name?: string, file?: string, url: string}>}
  * @phpstan-type ListCheckoutSessionsParams array{limit?: int, cursor?: string, external_reference?: string, status?: 'open'|'complete'|'expired'|'cancelled'}
