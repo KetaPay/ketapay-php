@@ -7,9 +7,11 @@ namespace KetaPay\Resources;
 use KetaPay\Collection;
 use KetaPay\Models\Dispute;
 use KetaPay\Models\Evidence;
+use KetaPay\Models\MoneyAction;
 
 /**
  * @phpstan-import-type CreateDisputeRequest from \KetaPay\Types\Params
+ * @phpstan-import-type ResolveDisputeRequest from \KetaPay\Types\Params
  * @phpstan-import-type SubmitEvidenceRequest from \KetaPay\Types\Params
  * @phpstan-import-type RequestOptions from \KetaPay\Http\HttpClient
  * @phpstan-import-type CustomerRequestOptions from \KetaPay\KetaPay
@@ -56,13 +58,26 @@ final class Disputes extends AbstractResource
     }
 
     /**
-     * Hands an open dispute to KetaPay to decide, for the customer whose token you send. No money moves.
+     * Hands an open dispute to whoever decides it (KetaPay, or your platform), for the customer whose token you send. No money moves.
      *
      * @param CustomerRequestOptions $options
      */
     public function escalate(string $id, array $options): Dispute
     {
         return $this->object(Dispute::class, 'POST', '/disputes/' . self::seg($id) . '/escalate', options: self::customer($options));
+    }
+
+    /**
+     * A platform's ruling on a dispute between two of its customers, with your key alone: release
+     * it to the seller, refund the buyer, or split it (`refund_amount` in kobo back to the buyer,
+     * the rest to the seller). Needs `escrows:manage`.
+     *
+     * @param ResolveDisputeRequest $params  outcome, refund_amount (split only), reason
+     * @param RequestOptions        $options
+     */
+    public function resolve(string $id, array $params, array $options = []): MoneyAction
+    {
+        return $this->object(MoneyAction::class, 'POST', '/disputes/' . self::seg($id) . '/resolve', $params, $options);
     }
 
     /**
@@ -85,12 +100,15 @@ final class Disputes extends AbstractResource
     }
 
     /**
-     * @param CustomerRequestOptions $options
+     * Both sides' evidence: with a party's customer token, or your key alone on a dispute your
+     * platform decides.
+     *
+     * @param CustomerRequestOptions|RequestOptions $options
      *
      * @return Collection<Evidence>
      */
-    public function listEvidence(string $id, array $options): Collection
+    public function listEvidence(string $id, array $options = []): Collection
     {
-        return $this->collection(Evidence::class, '/disputes/' . self::seg($id) . '/evidence', self::customer($options));
+        return $this->collection(Evidence::class, '/disputes/' . self::seg($id) . '/evidence', $options);
     }
 }

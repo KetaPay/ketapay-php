@@ -16,6 +16,7 @@ namespace KetaPay\Tests\E2E\Support;
  *   files             POST /files
  *   payout_accounts   /banks, /payout_accounts/*
  *   milestone_payout  milestone.payout and milestone.refund
+ *   rulings           POST /disputes/{id}/resolve (a platform's ruling)
  */
 final class Served
 {

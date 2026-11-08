@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: c1c0810fd674db7aaf086ca9e78baa7cdc90f1a817ee8e6044f484df2095c24c -->
+<!-- sha256: 3c0053a869c549976ee87a0ed7eb8b7bc67009d2594768c3cb81f398007fb946 -->
 
 # KetaPay SDK test catalogue
 
@@ -66,6 +66,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | REQ-010 | unit | Delivering a milestone without a customer token is allowed and sends no `KetaPay-Customer-Token` (the business delivers its own sale) |
 | REQ-011 | unit | Refunding an escrow sends `reason` in the JSON body and an idempotency key, and no `KetaPay-Customer-Token` |
 | REQ-012 | unit | Escalating a dispute posts to `/disputes/{id}/escalate` with the customer token and an idempotency key, and no body |
+| REQ-013 | unit | Resolving a dispute posts the ruling (`outcome`, `refund_amount` for a split, `reason`) to `/disputes/{id}/resolve` with an idempotency key, and no `KetaPay-Customer-Token` |
 
 ## ERR: errors and responses
 
@@ -174,3 +175,5 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-040 | e2e | Banks are listed, and a payout account shows in the customer's list until it is deleted |
 | E2E-041 | e2e | A webhook endpoint shows in the list, and an update changes its events |
 | E2E-042 | e2e | An event from the events list reads back by id |
+| E2E-043 | e2e | A platform splits a dispute its buyer raised: a `ruling_split` money action, the dispute `resolved` with `outcome` `partially_refunded`, `resolved_by` `platform` and `refunded_amount` as asked |
+| E2E-044 | e2e | A platform can't refund its customers' deal while no dispute is raised (`dispute_required`), and a split giving the buyer everything is refused (`refund_amount`) with no money moved |

@@ -77,6 +77,19 @@ final class RequestBodiesTest extends TestCase
         self::assertArrayHasKey('Idempotency-Key', $t->last()->headers);
     }
 
+    #[TestDox('[REQ-013] resolves a dispute with the ruling in the body and an idempotency key, and no customer token')]
+    public function testResolve(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'money_action']]);
+        $ruling = ['outcome' => 'split', 'refund_amount' => 3_000_000, 'reason' => 'Cracked screen, 30% back'];
+        self::client($t)->disputes->resolve('d1', $ruling);
+        self::assertStringContainsString('/disputes/d1/resolve', $t->last()->url);
+        self::assertSame('POST', $t->last()->method);
+        self::assertSame($ruling, $t->lastJson());
+        self::assertArrayHasKey('Idempotency-Key', $t->last()->headers);
+        self::assertArrayNotHasKey('KetaPay-Customer-Token', $t->last()->headers);
+    }
+
     #[TestDox('[REQ-008] creates a webhook endpoint from a URL alone, leaving the events to the API default')]
     public function testWebhookEndpointDefaultEvents(): void
     {

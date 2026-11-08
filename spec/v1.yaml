@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: ead9b7dbaafabba11ff473df826e89782db951ab994c46f981cda1efb20cde9a
+# sha256: 50b4a689401ecbe96d13caebd601ca79e2a865a60d979e1003a5e52aced37281
 
 openapi: 3.1.0
 info:
@@ -200,18 +200,25 @@ tags:
       An escrow holds the buyer's money until its milestones are released. Your key alone can
       read escrows and flag one for KetaPay to review. Delivering and releasing also need the
       right customer's proof. A key with `escrows:manage` can refund your own sales (see Money
-      actions).
+      actions); a deal between two of your customers is only ever settled by them or, once one
+      raises a dispute, by your ruling.
   - name: Disputes
     description: |
       Either side can open a dispute through your UI: the buyer when something wasn't delivered
-      as agreed, the seller when the buyer won't release or respond. KetaPay runs it end to end
-      and decides from the evidence both sides submit. An escrow can have several disputes over
-      its life, one open at a time: opening one freezes the whole escrow.
+      as agreed, the seller when the buyer won't release or respond. An escrow can have several
+      disputes over its life, one open at a time: opening one freezes the whole escrow.
+
+      **Who decides.** KetaPay decides disputes on your own sales (merchants, and a platform's
+      own sales). On a deal between two of a platform's customers the platform decides, under
+      its own published policy, with `POST /disputes/{id}/resolve`: release, refund or split.
+      A platform never touches its customers' deal until one of them raises a dispute, and no
+      deadline takes the decision away from it. Only if KetaPay pauses the platform does KetaPay
+      decide its open disputes.
 
       **Settling without KetaPay.** While a dispute is open, either side can back down: the
       buyer can release, the seller can refund (`POST /disputes/{id}/concede`), and whoever
-      opened it can withdraw it. Nobody can settle in their own favour; only KetaPay decides
-      against a party. Either side can ask KetaPay to decide straight away
+      opened it can withdraw it. Nobody can settle in their own favour; only whoever decides
+      rules against a party. Either side can ask for a decision straight away
       (`POST /disputes/{id}/escalate`), after which neither can settle it.
 
       **Evidence.** The buyer and the seller each submit statements and files (photos, videos,
@@ -221,8 +228,8 @@ tags:
       `awaiting_evidence_from` and `evidence_due_at` say who and by when, and KetaPay reminds
       them a day before. The deadline moves no money and late evidence is still taken. When
       KetaPay needs more from someone, you get `dispute.evidence_requested` so you can prompt
-      them in your app. Evidence is only visible
-      to the two parties and KetaPay; your key alone cannot read it.
+      them in your app. Evidence is only visible to the two parties, KetaPay and the platform
+      that decides the dispute: otherwise your key alone cannot read it.
   - name: Payout accounts
     description: |
       Where a customer's money goes: a seller's releases, or a buyer's refund they withdraw
@@ -935,9 +942,10 @@ paths:
 
         Needs a key with the `escrows:manage` scope, which is never added to an existing key and
         has to be chosen when the key is made. Refused while the escrow has an open dispute
-        (`dispute_open`) or is under review (`escrow_under_review`). A sale between two of your
-        customers needs an approved platform (`platform_not_approved`) that KetaPay hasn't paused
-        (`rulings_paused`). Sends `escrow.refunded`.
+        (`dispute_open`) or is under review (`escrow_under_review`). A deal between two of your
+        customers is never refunded here (`dispute_required`): only they settle it, unless one of
+        them raises a dispute for your platform to decide (`POST /disputes/{id}/resolve`). Sends
+        `escrow.refunded`.
       x-required-scope: escrows:manage
       parameters:
         - $ref: '#/components/parameters/Id'
@@ -1118,8 +1126,8 @@ paths:
         - **Seller's token:** refunds everything still held to the buyer. On a milestone dispute
           the remaining milestones are cancelled too, and the escrow ends `refunded`.
 
-        Whoever opened the dispute can concede too. Only while it is `open`: once KetaPay is
-        deciding it is `escrow_under_review`, and once it has ended `dispute_not_open`. Sends
+        Whoever opened the dispute can concede too. Only while it is `open`: once it is
+        `under_review` it is `escrow_under_review`, and once it has ended `dispute_not_open`. Sends
         `dispute.resolved`, then the money events.
       x-required-scope: escrows:act
       security:
@@ -1150,11 +1158,12 @@ paths:
       operationId: escalateDispute
       tags:
         - Disputes
-      summary: Ask KetaPay to decide
+      summary: Ask for a decision
       description: |
-        Hands an `open` dispute to KetaPay, for the buyer or the seller whose customer token you
-        send (or your key alone when your business is the seller). The status becomes
-        `under_review` and both sides are told. No money moves, and neither side can concede or
+        Hands an `open` dispute to whoever decides it, for the buyer or the seller whose customer
+        token you send (or your key alone when your business is the seller): KetaPay, or on a deal
+        between two of your customers your platform (`POST /disputes/{id}/resolve`). The status
+        becomes `under_review` and both sides are told who decides. No money moves, and neither side can concede or
         withdraw after this (`escrow_under_review`). Evidence is still welcome until it ends.
       x-required-scope: escrows:act
       security:
@@ -1208,6 +1217,67 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/NotParty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /disputes/{id}/resolve:
+    post:
+      operationId: resolveDispute
+      tags:
+        - Disputes
+      summary: Decide a dispute (platforms)
+      description: |
+        For an approved platform, on a deal between two of its customers, with your key alone: the
+        only way you move your customers' money, and only once one of them has raised a dispute.
+        While no dispute is open, only the buyer and seller act on the escrow.
+
+        - `release`: everything in dispute goes to the seller (less fees).
+        - `refund`: everything still held goes back to the buyer. On a milestone dispute the
+          remaining milestones are cancelled and the escrow ends `refunded`.
+        - `split`: `refund_amount` of what is in dispute goes back to the buyer and the rest to the
+          seller, in one go. It must leave both sides something (less than what is in dispute).
+
+        What is in dispute is the milestone for a milestone dispute, or everything still held for
+        the whole escrow. KetaPay keeps its fee as on a refund, and your commission is only on what
+        the seller is paid. Works while the dispute is `open` or `under_review`. The dispute ends
+        `resolved` with `outcome` `released`, `refunded` or `partially_refunded` and `resolved_by`
+        `platform`. Sends `dispute.resolved`, then the money events.
+
+        Refused for a merchant (`platform_not_approved`: KetaPay decides your disputes), on your
+        own sales or deals your team is part of (`not_the_decider`), while KetaPay has paused your
+        platform (`rulings_paused`: KetaPay decides meanwhile), once the dispute has ended
+        (`dispute_not_open`) and while the escrow is under review (`escrow_under_review`). Counts
+        towards your rolling 24-hour limit (`daily_limit_reached`).
+      x-required-scope: escrows:manage
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveDisputeRequest'
+            example:
+              outcome: split
+              refund_amount: 3000000
+              reason: The screen arrived cracked; our policy refunds 30% for cosmetic damage.
+      responses:
+        '200':
+          description: Decided. The money action is `executed`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoneyAction'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -1270,7 +1340,8 @@ paths:
       description: |
         Everything both sides have submitted, oldest first, including files they added in the
         KetaPay app (each on its own, with a null `statement`). Needs the buyer's or the seller's
-        customer token.
+        customer token, or, on a deal between two of your customers that your platform decides,
+        your key alone.
       x-required-scope: escrows:act
       security:
         - secretKey: []
@@ -2422,7 +2493,7 @@ components:
               param: null
               request_id: req_01J9ZK7M2Q4V8XW3B6N5T0R1YH
     Forbidden:
-      description: The key lacks the scope, or the organisation can't do this yet (for example live keys before verification, `platform_not_approved`, `rulings_paused`, `daily_limit_reached`)
+      description: The key lacks the scope, or the organisation can't do this (for example live keys before verification, `platform_not_approved`, `not_the_decider`, `dispute_required`, `rulings_paused`, `daily_limit_reached`)
       content:
         application/json:
           schema:
@@ -2694,7 +2765,7 @@ components:
                 `customer_not_allowed`, `bank_account_not_found`, `file_too_large`,
                 `file_type_not_allowed`, `file_not_usable`, `resource_not_found`,
                 `url_not_https`, `api_key_invalid`, `api_key_expired`, `missing_scope`, `live_mode_not_enabled`,
-                `platform_not_approved`, `rulings_paused`, `daily_limit_reached`,
+                `platform_not_approved`, `not_the_decider`, `dispute_required`, `rulings_paused`, `daily_limit_reached`,
                 `action_already_scheduled`,
                 `idempotency_key_missing`, `idempotency_key_reused`, `rate_limited`, `test_mode_only`,
                 `internal_error`. New codes may be added.
@@ -3744,6 +3815,7 @@ components:
         - action
         - status
         - amount
+        - refund_amount
         - escrow_id
         - milestone_id
         - dispute_id
@@ -3767,6 +3839,10 @@ components:
             - refund
             - ruling_release
             - ruling_refund
+            - ruling_split
+          description: |
+            `refund` is a refund of your own sale. `ruling_*` is a platform's decision on a dispute
+            (`dispute_id`): all to the seller, all back to the buyer, or split.
         status:
           type: string
           enum:
@@ -3781,6 +3857,11 @@ components:
             move the money, and KetaPay is looking into it.
         amount:
           $ref: '#/components/schemas/Amount'
+        refund_amount:
+          oneOf:
+            - $ref: '#/components/schemas/Amount'
+            - type: 'null'
+          description: For `ruling_split`, the part of `amount` that went back to the buyer; the rest went to the seller. Null otherwise
         escrow_id:
           type: string
           format: uuid
@@ -3896,8 +3977,9 @@ components:
             - under_review
             - resolved
           description: |
-            `open`: the buyer and seller are trying to agree. `under_review`: a KetaPay mediator
-            is deciding. `resolved`: ended, see `outcome`.
+            `open`: the buyer and seller are trying to agree. `under_review`: whoever decides it
+            (KetaPay, or the platform on a deal between its customers) is deciding. `resolved`:
+            ended, see `outcome`.
         reason:
           $ref: '#/components/schemas/DisputeReason'
         outcome:
@@ -3912,7 +3994,7 @@ components:
             - null
           description: |
             Null until resolved. `withdrawn`: the buyer withdrew the dispute and the deal
-            continues. `partially_refunded`: split between buyer and seller.
+            continues. `partially_refunded`: a platform split it between buyer and seller.
         resolved_by:
           type:
             - string
@@ -3921,8 +4003,9 @@ components:
             - buyer
             - seller
             - ketapay
+            - platform
             - null
-          description: Who ended it. A party can only end it against themselves (conceding) or by withdrawing their own dispute.
+          description: Who ended it. A party can only end it against themselves (conceding) or by withdrawing their own dispute. `platform` when the platform that decides the deal ruled.
         refunded_amount:
           oneOf:
             - $ref: '#/components/schemas/Amount'
@@ -4614,6 +4697,30 @@ components:
           minLength: 1
           maxLength: 1000
           description: What the buyer needs changed, shown to the seller
+    ResolveDisputeRequest:
+      type: object
+      required:
+        - outcome
+        - reason
+      properties:
+        outcome:
+          type: string
+          enum:
+            - release
+            - refund
+            - split
+          description: All to the seller, all back to the buyer, or split with `refund_amount`
+        refund_amount:
+          type: integer
+          minimum: 1
+          description: |
+            For `split` only, and required for it: what goes back to the buyer, in kobo. Less than
+            what is in dispute, so the seller gets the rest.
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: Why you decided this way, under your policy. Kept with the record of who did it.
   examples:
     OpenCheckoutSession:
       summary: Open, waiting for payment
