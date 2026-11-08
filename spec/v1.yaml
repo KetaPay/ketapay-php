@@ -1,5 +1,5 @@
 # GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`.
-# sha256: ead9b7dbaafabba11ff473df826e89782db951ab994c46f981cda1efb20cde9a
+# sha256: dd1e46c27a5e4630054f7c7686dcc0998344866654f7b5a15d6c4f90c5be655d
 
 openapi: 3.1.0
 info:
@@ -146,6 +146,9 @@ info:
       `POST /webhook_endpoints/{id}/test`.
     - Payout account `0000000000` (any bank) succeeds; `0000000001` fails, so you can test
       `payout.failed`.
+    - A seller you name (platforms) starts unverified, so their payouts are
+      `awaiting_verification`. Start verification on the payout's `verification_url` page, or call
+      `POST /test_helpers/customers/verify`, and their held payouts go on to their payout account.
 
     Test helpers return `404 test_mode_only` with a live key.
 
@@ -1660,6 +1663,56 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+  /verification_links:
+    post:
+      operationId: createVerificationLink
+      tags:
+        - Payout accounts
+      summary: Create a seller verification link
+      description: |
+        A link for the customer whose token you send to verify their identity once (their BVN and a
+        selfie, on their phone), on a KetaPay page. Send them to `url`. Once they finish, every
+        payout held for them (`awaiting_verification`) goes on to their payout account, and the page
+        offers a button back to your `return_url`.
+
+        The link works for 24 hours (`expires_at`). Opened later, it sends the seller to your
+        `refresh_url` to get a new one, or back to `return_url` if you gave none. Opened on a
+        computer, the page shows a code to continue on their phone.
+
+        You only need this to bring the seller back to your app or site: a held payout's
+        `verification_url` works too, without a return button.
+      x-required-scope: payout_accounts:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVerificationLinkRequest'
+            example:
+              return_url: https://market.example.com/seller/payouts
+              refresh_url: https://market.example.com/seller/verify
+      responses:
+        '201':
+          description: The link to send the seller to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationLink'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotParty'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /webhook_endpoints:
     post:
       operationId: createWebhookEndpoint
@@ -2001,6 +2054,33 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+  /test_helpers/customers/verify:
+    post:
+      operationId: testVerifyCustomer
+      tags:
+        - Test helpers
+      summary: Verify a customer (sandbox)
+      description: |
+        Verifies the customer whose token you send, as finishing hosted verification would. Every
+        payout held for them (`awaiting_verification`) is freed and goes on to their payout account,
+        with `payout.sent` or `payout.failed` as usual.
+      x-required-scope: test_helpers:write
+      security:
+        - secretKey: []
+          customerToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The customer is verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerVerification'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
 webhooks:
   checkout_session.expired:
     post:
@@ -3338,6 +3418,7 @@ components:
         - account_number_last4
         - sent_at
         - failure_reason
+        - verification_url
       properties:
         id:
           type: string
@@ -3358,14 +3439,18 @@ components:
         status:
           type: string
           enum:
+            - awaiting_verification
             - awaiting_account
             - processing
             - sent
             - failed
           description: |
-            `awaiting_account`: in the seller's KetaPay balance until they confirm a payout
-            account. `processing`: transfer started. `sent`: reached the bank. `failed`: rejected
-            by the bank and back in the seller's balance.
+            `awaiting_verification`: held until the seller verifies their identity (platforms only:
+            a seller you name is paid once they have verified, any amount; a business selling for
+            itself is never held, nor is the seller of a platform KetaPay has approved to verify its
+            own sellers). `awaiting_account`: in the seller's KetaPay balance until they
+            confirm a payout account. `processing`: transfer started. `sent`: reached the bank.
+            `failed`: rejected by the bank and back in the seller's balance.
         bank_name:
           type:
             - string
@@ -3385,6 +3470,17 @@ components:
             - string
             - 'null'
           example: Account closed
+        verification_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: |
+            Where the seller verifies, while the payout is `awaiting_verification`: send them there.
+            It is a KetaPay page, the same for every payout of the seller, and needs no sign-in: the
+            seller checks their BVN and takes a selfie on their phone. Once they finish, every payout
+            held for them goes on to their payout account. In test mode, starting it on the page
+            verifies the seller at once. Null in every other status.
     Milestone:
       type: object
       required:
@@ -4614,6 +4710,71 @@ components:
           minLength: 1
           maxLength: 1000
           description: What the buyer needs changed, shown to the seller
+    CreateVerificationLinkRequest:
+      type: object
+      required:
+        - return_url
+      properties:
+        return_url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: |
+            Where the page's button sends the seller once they're verified: your app or site. https
+            (http://localhost works with a test key).
+        refresh_url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: |
+            Where an expired link sends the seller, so you can make them a new one. https
+            (http://localhost works with a test key). Without it, an expired link points back to
+            `return_url`.
+    VerificationLink:
+      type: object
+      required:
+        - object
+        - livemode
+        - url
+        - return_url
+        - refresh_url
+        - expires_at
+      properties:
+        object:
+          type: string
+          const: verification_link
+        livemode:
+          type: boolean
+        url:
+          type: string
+          format: uri
+          description: The page to send the seller to. In test mode, starting it verifies them at once.
+          example: https://checkout.ketapay.com/verify/ls_9f1c...?return_url=https%3A%2F%2Fmarket.example.com%2Fseller%2Fpayouts
+        return_url:
+          type: string
+          format: uri
+        refresh_url:
+          type:
+            - string
+            - 'null'
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+          description: 24 hours after it was made
+    CustomerVerification:
+      type: object
+      description: The sandbox verified the customer (test helper)
+      required:
+        - object
+        - verified
+      properties:
+        object:
+          type: string
+          const: customer_verification
+        verified:
+          type: boolean
+          const: true
   examples:
     OpenCheckoutSession:
       summary: Open, waiting for payment

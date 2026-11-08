@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: c1c0810fd674db7aaf086ca9e78baa7cdc90f1a817ee8e6044f484df2095c24c -->
+<!-- sha256: 03541d2b267b4b29c2a4d7dcc1d4fc955b170d67d2422803c2ba3af971f1704c -->
 
 # KetaPay SDK test catalogue
 
@@ -66,6 +66,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | REQ-010 | unit | Delivering a milestone without a customer token is allowed and sends no `KetaPay-Customer-Token` (the business delivers its own sale) |
 | REQ-011 | unit | Refunding an escrow sends `reason` in the JSON body and an idempotency key, and no `KetaPay-Customer-Token` |
 | REQ-012 | unit | Escalating a dispute posts to `/disputes/{id}/escalate` with the customer token and an idempotency key, and no body |
+| REQ-013 | unit | Creating a verification link posts to `/verification_links` with the customer token, an idempotency key and the `return_url` and `refresh_url` in the body |
 
 ## ERR: errors and responses
 
@@ -143,7 +144,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-009 | e2e | Dispute opened, evidence uploaded with a file, seller concedes: dispute `resolved`, money refunded |
 | E2E-010 | e2e | retired: no simulate helper (KetaPay rulings are tested with a `dispute.resolved` test event) |
 | E2E-011 | e2e | retired: no simulate helper (chargebacks are tested with `chargeback.*` test events) |
-| E2E-012 | e2e | A payout to test account `0000000001` records `payout.failed` and the money stays in the seller's balance |
+| E2E-012 | e2e | A payout to test account `0000000001` (verified seller) records `payout.failed` and the money stays in the seller's balance |
 | E2E-013 | e2e | retired: no simulate helper (refunds go to the buyer's KetaPay balance; `refund.failed` is tested with a test event) |
 | E2E-014 | e2e | A payout account is added and confirmed with its code (sandbox code `123456`) |
 | E2E-015 | e2e | Same idempotency key and body returns the same object; same key with a different body returns `idempotency_key_reused` |
@@ -174,3 +175,6 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-040 | e2e | Banks are listed, and a payout account shows in the customer's list until it is deleted |
 | E2E-041 | e2e | A webhook endpoint shows in the list, and an update changes its events |
 | E2E-042 | e2e | An event from the events list reads back by id |
+| E2E-043 | e2e | An unverified seller's payout is `awaiting_verification`; verifying them (test helper) sends it on and records `payout.sent` |
+| E2E-044 | e2e | While a payout is `awaiting_verification` its `verification_url` is the seller's `/verify/` page; once the seller is verified it is null |
+| E2E-045 | e2e | A verification link created for a seller (customer token) is a `/verify/` page carrying the `return_url` and `refresh_url` given, expiring about 24 hours later |

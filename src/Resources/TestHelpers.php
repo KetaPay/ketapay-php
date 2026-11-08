@@ -11,8 +11,11 @@ final class TestHelpers
 {
     public readonly TestHelpers\CheckoutSessions $checkoutSessions;
 
+    public readonly TestHelpers\Customers $customers;
+
     public function __construct(HttpClient $http)
     {
         $this->checkoutSessions = new TestHelpers\CheckoutSessions($http);
+        $this->customers = new TestHelpers\Customers($http);
     }
 }

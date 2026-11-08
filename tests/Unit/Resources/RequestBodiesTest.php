@@ -65,6 +65,24 @@ final class RequestBodiesTest extends TestCase
         self::assertArrayNotHasKey('KetaPay-Customer-Token', $t->last()->headers);
     }
 
+    #[TestDox('[REQ-013] creates a verification link with the customer token, an idempotency key and the return URLs')]
+    public function testVerificationLink(): void
+    {
+        $t = new MockTransport(['status' => 201, 'body' => ['object' => 'verification_link']]);
+        self::client($t)->verificationLinks->create(
+            ['return_url' => 'https://example.com/done', 'refresh_url' => 'https://example.com/again'],
+            ['customerToken' => 'tok'],
+        );
+        self::assertStringContainsString('/verification_links', $t->last()->url);
+        self::assertSame('POST', $t->last()->method);
+        self::assertSame(
+            ['return_url' => 'https://example.com/done', 'refresh_url' => 'https://example.com/again'],
+            json_decode((string) $t->last()->body, true),
+        );
+        self::assertSame('tok', $t->last()->headers['KetaPay-Customer-Token']);
+        self::assertArrayHasKey('Idempotency-Key', $t->last()->headers);
+    }
+
     #[TestDox('[REQ-012] escalates a dispute with the customer token and an idempotency key, and no body')]
     public function testEscalate(): void
     {
