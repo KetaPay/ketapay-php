@@ -27,6 +27,7 @@ namespace KetaPay\Types;
  * @phpstan-type PartyInput array{email: string, phone?: string, name?: string|null}|array{email?: string, phone: string, name?: string|null}
  * @phpstan-type ReleaseMilestoneRequest array{release_code?: string}
  * @phpstan-type RequestChangesRequest array{note: string}
+ * @phpstan-type ResolveDisputeRequest array{outcome: 'release'|'refund'|'split', refund_amount?: int, reason: string}
  * @phpstan-type SubmitEvidenceRequest array{statement: string, files?: list<string>}
  * @phpstan-type UpdateWebhookEndpointRequest array{url?: string, enabled_events?: list<string>, description?: string|null, status?: 'enabled'|'disabled'}
  */

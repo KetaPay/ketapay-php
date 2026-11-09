@@ -58,6 +58,7 @@ final class SpecCoverageTest extends TestCase
             'listEscrowDisputes' => fn(KetaPay $k) => $k->disputes->listForEscrow($id),
             'getDispute' => fn(KetaPay $k) => $k->disputes->retrieve($id),
             'concedeDispute' => fn(KetaPay $k) => $k->disputes->concede($id, $t),
+            'resolveDispute' => fn(KetaPay $k) => $k->disputes->resolve($id, ['outcome' => 'release', 'reason' => 'Delivered, tracking shows it']),
             'escalateDispute' => fn(KetaPay $k) => $k->disputes->escalate($id, $t),
             'withdrawDispute' => fn(KetaPay $k) => $k->disputes->withdraw($id, $t),
             'submitDisputeEvidence' => fn(KetaPay $k) => $k->disputes->submitEvidence($id, ['statement' => 'Photos attached here'], $t),
