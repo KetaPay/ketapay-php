@@ -59,7 +59,19 @@ final class FilesAndSandboxTest extends TestCase
         $live = self::client($t, ['apiKey' => 'sk_live_x']);
         $e = self::catching(InvalidRequestError::class, fn() => $live->testHelpers->checkoutSessions->pay('cs1'));
         self::assertSame('test_mode_only', $e->code);
+        $e = self::catching(InvalidRequestError::class, fn() => $live->testHelpers->customers->verify(['customerToken' => 't']));
+        self::assertSame('test_mode_only', $e->code);
         self::assertCount(0, $t->requests);
+    }
+
+    public function testVerifyCustomer(): void
+    {
+        $t = new MockTransport(['body' => ['object' => 'customer_verification', 'verified' => true]]);
+        $result = self::client($t)->testHelpers->customers->verify(['customerToken' => 'ct_1']);
+        self::assertTrue($result->verified);
+        self::assertSame('POST', $t->last()->method);
+        self::assertStringEndsWith('/v1/test_helpers/customers/verify', $t->last()->url);
+        self::assertSame('ct_1', $t->last()->headers['KetaPay-Customer-Token']);
     }
 
     #[TestDox('[SEC-003] refuses an empty id instead of calling the collection')]

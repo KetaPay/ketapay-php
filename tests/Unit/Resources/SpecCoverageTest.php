@@ -75,6 +75,7 @@ final class SpecCoverageTest extends TestCase
             'confirmPayoutAccount' => fn(KetaPay $k) => $k->payoutAccounts->confirm($id, '123456', $t),
             'listPayoutAccounts' => fn(KetaPay $k) => $k->payoutAccounts->list($t),
             'deletePayoutAccount' => fn(KetaPay $k) => $k->payoutAccounts->del($id, $t),
+            'createVerificationLink' => fn(KetaPay $k) => $k->verificationLinks->create(['return_url' => 'https://example.com/done', 'refresh_url' => 'https://example.com/again'], $t),
             // Webhook endpoints and events
             'createWebhookEndpoint' => fn(KetaPay $k) => $k->webhookEndpoints->create(['url' => 'https://example.com/hooks', 'enabled_events' => ['escrow.funded']]),
             'listWebhookEndpoints' => fn(KetaPay $k) => $k->webhookEndpoints->list(),
@@ -87,6 +88,7 @@ final class SpecCoverageTest extends TestCase
             'getEvent' => fn(KetaPay $k) => $k->events->retrieve($id),
             // Sandbox
             'testPayCheckoutSession' => fn(KetaPay $k) => $k->testHelpers->checkoutSessions->pay($id),
+            'testVerifyCustomer' => fn(KetaPay $k) => $k->testHelpers->customers->verify(['customerToken' => 't']),
         ];
     }
 
