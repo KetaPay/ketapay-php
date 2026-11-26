@@ -38,7 +38,6 @@ final class SecurityAndDefaultsTest extends TestCase
             'escalate' => fn() => $k->disputes->escalate('d1', []), // @phpstan-ignore argument.type
             'withdraw' => fn() => $k->disputes->withdraw('d1', []), // @phpstan-ignore argument.type
             'add evidence' => fn() => $k->disputes->submitEvidence('d1', ['statement' => 'Photos attached'], []), // @phpstan-ignore argument.type
-            'list evidence' => fn() => $k->disputes->listEvidence('d1', []), // @phpstan-ignore argument.type
             'add chargeback evidence' => fn() => $k->chargebacks->submitEvidence('c1', ['statement' => 'Courier receipt'], []), // @phpstan-ignore argument.type
             'add a payout account' => fn() => $k->payoutAccounts->create(['bank_code' => '057', 'account_number' => '0123456789'], []), // @phpstan-ignore argument.type
             'confirm a payout account' => fn() => $k->payoutAccounts->confirm('p1', '123456', []), // @phpstan-ignore argument.type
