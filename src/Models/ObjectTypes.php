@@ -16,6 +16,7 @@ final class ObjectTypes
         'checkout_session' => CheckoutSession::class,
         'customer_session' => CustomerSession::class,
         'customer_token' => CustomerToken::class,
+        'customer_verification' => CustomerVerification::class,
         'dispute' => Dispute::class,
         'escrow' => Escrow::class,
         'event' => Event::class,
@@ -29,6 +30,7 @@ final class ObjectTypes
         'pricing' => Pricing::class,
         'refund' => Refund::class,
         'release_code' => ReleaseCode::class,
+        'verification_link' => VerificationLink::class,
         'webhook_endpoint' => WebhookEndpoint::class,
         'webhook_test_result' => WebhookTestResult::class,
     ];
