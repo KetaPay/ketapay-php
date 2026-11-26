@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.0-beta.6](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.5...v0.1.0-beta.6) (2026-11-26)
+
+
+### Features
+
+* **disputes:** add disputes-&gt;resolve for platform rulings (ENG-577) ([#39](https://github.com/KetaPay/ketapay-php/issues/39)) ([4e6fcc2](https://github.com/KetaPay/ketapay-php/commit/4e6fcc28e67c71a01f0b4e2a4ea7cfef9fff0bd6))
+* **verification-links:** create a seller verification link with return URLs ([#38](https://github.com/KetaPay/ketapay-php/issues/38)) ([fdb57a3](https://github.com/KetaPay/ketapay-php/commit/fdb57a33aaa77d3faabfed73bc666ace0423fe17))
+
 ## [0.1.0-beta.5](https://github.com/KetaPay/ketapay-php/compare/v0.1.0-beta.4...v0.1.0-beta.5) (2026-11-06)
 
 
