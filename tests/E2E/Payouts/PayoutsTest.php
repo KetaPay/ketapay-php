@@ -48,7 +48,7 @@ final class PayoutsTest extends E2ETestCase
         self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'payout.failed')));
     }
 
-    #[TestDox("[E2E-043] an unverified seller's payout waits for verification, then goes out with payout.sent")]
+    #[TestDox("[E2E-045] an unverified seller's payout waits for verification, then goes out with payout.sent")]
     public function testPayoutAwaitsVerification(): void
     {
         self::requireServed('payout_accounts', 'milestone_payout');
@@ -72,7 +72,7 @@ final class PayoutsTest extends E2ETestCase
         self::eventually(fn() => self::assertCount(1, self::eventsFor($escrow, 'payout.sent')));
     }
 
-    #[TestDox("[E2E-044] a held payout's verification_url is the seller's /verify/ page, gone once they are verified")]
+    #[TestDox("[E2E-046] a held payout's verification_url is the seller's /verify/ page, gone once they are verified")]
     public function testVerificationLink(): void
     {
         self::requireServed('payout_accounts', 'milestone_payout');
@@ -103,7 +103,7 @@ final class PayoutsTest extends E2ETestCase
         );
     }
 
-    #[TestDox('[E2E-045] a verification link for a seller is their /verify/ page with the return URLs, for about a day')]
+    #[TestDox('[E2E-047] a verification link for a seller is their /verify/ page with the return URLs, for about a day')]
     public function testVerificationLinkForSeller(): void
     {
         self::requireServed('payout_accounts');

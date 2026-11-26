@@ -1,5 +1,5 @@
 <!-- GENERATED: do not edit. Copied from documentation/openapi/public by `composer sync-spec`. -->
-<!-- sha256: 03541d2b267b4b29c2a4d7dcc1d4fc955b170d67d2422803c2ba3af971f1704c -->
+<!-- sha256: e4378e45a1696b1cadb3b159bf092bfddb9256a3c297c5c9c77cfb7a6cfb0e04 -->
 
 # KetaPay SDK test catalogue
 
@@ -66,7 +66,7 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | REQ-010 | unit | Delivering a milestone without a customer token is allowed and sends no `KetaPay-Customer-Token` (the business delivers its own sale) |
 | REQ-011 | unit | Refunding an escrow sends `reason` in the JSON body and an idempotency key, and no `KetaPay-Customer-Token` |
 | REQ-012 | unit | Escalating a dispute posts to `/disputes/{id}/escalate` with the customer token and an idempotency key, and no body |
-| REQ-013 | unit | Creating a verification link posts to `/verification_links` with the customer token, an idempotency key and the `return_url` and `refresh_url` in the body |
+| REQ-014 | unit | Creating a verification link posts to `/verification_links` with the customer token, an idempotency key and the `return_url` and `refresh_url` in the body |
 
 ## ERR: errors and responses
 
@@ -175,6 +175,6 @@ Every scenario below must be tested in **every** official KetaPay SDK. This file
 | E2E-040 | e2e | Banks are listed, and a payout account shows in the customer's list until it is deleted |
 | E2E-041 | e2e | A webhook endpoint shows in the list, and an update changes its events |
 | E2E-042 | e2e | An event from the events list reads back by id |
-| E2E-043 | e2e | An unverified seller's payout is `awaiting_verification`; verifying them (test helper) sends it on and records `payout.sent` |
-| E2E-044 | e2e | While a payout is `awaiting_verification` its `verification_url` is the seller's `/verify/` page; once the seller is verified it is null |
-| E2E-045 | e2e | A verification link created for a seller (customer token) is a `/verify/` page carrying the `return_url` and `refresh_url` given, expiring about 24 hours later |
+| E2E-045 | e2e | An unverified seller's payout is `awaiting_verification`; verifying them (test helper) sends it on and records `payout.sent` |
+| E2E-046 | e2e | While a payout is `awaiting_verification` its `verification_url` is the seller's `/verify/` page; once the seller is verified it is null |
+| E2E-047 | e2e | A verification link created for a seller (customer token) is a `/verify/` page carrying the `return_url` and `refresh_url` given, expiring about 24 hours later |

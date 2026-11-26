@@ -65,7 +65,7 @@ final class RequestBodiesTest extends TestCase
         self::assertArrayNotHasKey('KetaPay-Customer-Token', $t->last()->headers);
     }
 
-    #[TestDox('[REQ-013] creates a verification link with the customer token, an idempotency key and the return URLs')]
+    #[TestDox('[REQ-014] creates a verification link with the customer token, an idempotency key and the return URLs')]
     public function testVerificationLink(): void
     {
         $t = new MockTransport(['status' => 201, 'body' => ['object' => 'verification_link']]);
